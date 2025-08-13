@@ -1,0 +1,3 @@
+25/08/07
+namo editor Config.xml 파일 내 수정필요
+ReturnKeyActionBR True 수정
