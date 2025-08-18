@@ -1,3 +1,8 @@
-25/08/07
+25/08/07 miso_total.sh
 namo editor Config.xml 파일 내 수정필요
 ReturnKeyActionBR True 수정
+
+25/08/18 web_passwd.sh
+system.property 데이터 추출시 개행
+webapps_path 변수 수정
+user 테이블 없을시 2>/dev/null 오류문구 제거
