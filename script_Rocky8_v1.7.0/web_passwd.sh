@@ -38,34 +38,36 @@ if [ -z $tomcat_home ]; then
 	echo "check tomcat_path"
 	exit 0
 fi
-webapps_path=$(grep -rE 'path=\"/\".*docBase=' "$tomcat_home"/conf/server.xml | cut -d '=' -f3 | awk '{print $1}' | sed -e 's/\"//g')
+webapps_path=$(grep -rE 'path=\"/\".*docBase=' "$tomcat_home"/conf/server.xml | grep -v '<!--' | cut -d '=' -f3 | awk '{print $1}' | sed -e 's/\"//g')
 #echo $webapps_path
 
-if [ -z $webpass_path ]; then
+if [ -z $webapps_path ]; then
 	webapps_path="$tomcat_home"/webapps/ROOT
 fi
 }
 
 find_db_info(){
 ##find DB_info
-DB_user=$(grep -r ^miso.db.user "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2)
-DB_passwd=$(grep -r ^miso.db.password "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2)
-DB_name=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | awk -F "/" '{print $4}' | awk -F "?" '{print$1}')
-DB_IP=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties |  awk -F "//" '{print $2}' | awk -F ":" '{print$1}')
+DB_user=$(grep -r ^miso.db.user "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | tr -d '\r')
+DB_passwd=$(grep -r ^miso.db.password "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | tr -d '\r')
+DB_name=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | awk -F "/" '{print $4}' | awk -F "?" '{print$1}' | tr -d '\r')
+DB_IP=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties |  awk -F "//" '{print $2}' | awk -F ":" '{print$1}' | tr -d '\r')
 
 }
 
 db_query(){
 echo "###################################################"
 if [[ "$DB_IP" == "localhost" || "$DB_IP" == "127.0.0.1" ]]; then
-	check_id=$(mysql -u$DB_user -p$DB_passwd $DB_name -Bse "select USER_ID from user where USER_ID='$1'")
-	check_id2=$(mysql -u$DB_user -p$DB_passwd $DB_name -Bse "select EMP_ID from cms_partner_emp where EMP_ID='$1'")
+	check_id=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select USER_ID from user where USER_ID='$1'" 2>/dev/null)
+	check_id2=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select EMP_ID from cms_partner_emp where EMP_ID='$1'" 2>/dev/null)
 	if [ ! -z $check_id ]; then
-		mysql -u$DB_user -p$DB_passwd $DB_name -Bse "update user set PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U' where USER_ID = '$1'"
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update user set PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U' where USER_ID = '$1'"
 		echo "'$DB_name'.'$1' change passwd"
 	elif [ ! -z $check_id2 ]; then
-		mysql -u$DB_user -p$DB_passwd $DB_name -Bse "update cms_partner_emp set EMP_PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U', LOGIN_YN='Y' where EMP_ID = '$1'"
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update cms_partner_emp set EMP_PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U', LOGIN_YN='Y' where EMP_ID = '$1'"
 		echo "'$DB_name'.'$1' change passwd"
+	else
+		echo "check user id : "$1
 	fi
 
 else
