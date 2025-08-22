@@ -36,9 +36,10 @@ fi
 
 rpmupdate()
 {
-mkdir tmp&& cd tmp
+mkdir tmp
+cd tmp
 dnf -y install --downloadonly --downloaddir=.  gcc gcc-c++ make perl tar expat-devel zlib-devel openssl-devel pcre-devel
-rpm -Uvh *
+rpm -Uvh --force *
 cd -
 }
 
@@ -110,6 +111,17 @@ JkLogFile logs/mod_jk.log
 JkLogLevel info
 JkLogStampFormat "[%y %m %d %H:%M:%S] "
 JkMount /* worker1
+JkUnMount /*.css   worker1
+JkUnMount /*.js    worker1
+JkUnMount /*.png   worker1
+JkUnMount /*.jpg   worker1
+JkUnMount /*.jpeg  worker1
+JkUnMount /*.gif   worker1
+JkUnMount /*.svg   worker1
+JkUnMount /*.webp  worker1
+JkUnMount /*.ico   worker1
+JkUnMount /*.woff  worker1
+JkUnMount /*.woff2 worker1 
 EOF
 
 read -p "tomcat server ip ? >" tomcat_ip
@@ -120,6 +132,16 @@ worker.list=worker1
 worker.worker1.port=8009
 worker.worker1.host=${tomcat_ip}
 worker.worker1.type=ajp13
+
+#worker.worker1.connect_timeout=5000
+#worker.worker1.reply_timeout=60000
+#worker.worker1.ping_mode=A
+#worker.worker1.ping_timeout=10000
+#worker.worker1.connection_pool_timeout=600
+#worker.worker1.max_packet_size=65536
+
+#<Connector protocol="AJP/1.3" address="0.0.0.0" port="8009" redirectPort="8443" maxParameterCount="1000" URIEncoding="UTF-8" enableLookups="false"
+# server="server" secretRequired="false" packetSize="65536" maxThreads="400" acceptCount="200" ConnectionTimeout="30000" />
 EOF
 
 }
@@ -168,7 +190,13 @@ main()
 		*)
 			apache_file_check&&local_repository_check&&rpmupdate&&
 			makefile&&tomcat_connector&&remove_src&&makesystemfile&&firewalld
+			echo "##########################"
 			echo "apache install done"
+			echo "httpd.conf require web file"
+			echo "##########################"
+			cat ${apache_path}/conf/httpd.conf | grep -nA 1 ^DocumentRoot
+			echo "##########################"
+			echo ""
 			;;
 	esac
 }
