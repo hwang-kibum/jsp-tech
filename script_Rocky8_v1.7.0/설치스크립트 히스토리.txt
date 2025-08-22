@@ -6,3 +6,8 @@ ReturnKeyActionBR True 수정
 system.property 데이터 추출시 개행
 webapps_path 변수 수정
 user 테이블 없을시 2>/dev/null 오류문구 제거
+
+25/08/22 apache_install.sh
+httpd-2.4.65 버전 rocky8.10 ,9.6 테스트 완료
+mod_jk.conf , workers.properties 파일 내용 수정
+workers.properties 내 tomcat 에서 사용될 문구 주석처리 입력
