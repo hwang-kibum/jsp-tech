@@ -39,7 +39,6 @@ tlog_path="${install_path}/logs/tomcat"
 db_path="${install_path}/mariadb"
 dbdata_path="${install_path}/mariadbData"
 dlog_path="${install_path}/logs/mariadb"
-apache_path="${install_path}/httpd"
 
 HOST_IP=127.0.0.1
 DB_IP=127.0.0.1
@@ -60,14 +59,15 @@ DBFILE=mariadb-11.4.7-linux-systemd-x86_64.tar.gz
 MISOWAR=miso.core.web-2.0.war
 ###########################################
 #apache variable
+apache_path="${install_path}/httpd"
 pcre_file=pcre-8.45.tar.gz
 apr_file=apr-1.7.5.tar.gz
 apr_util_file=apr-util-1.6.3.tar.gz
 apache_file=httpd-2.4.63.tar.gz
 connector_file=tomcat-connectors-1.2.50-src.tar.gz
 ###########################################
-nexus_id=lsm97
-nexus_pw=wlfks@09!
+nexus_id=
+nexus_pw=
 repository_path='http://10.52.251.103:8083/nexus/content/repositories/releases'
 declare -a download_file=(
   "/miso/content/repositories/releases/jiransnc/miso.core.web/2.0/miso.core.web-2.0.war"
