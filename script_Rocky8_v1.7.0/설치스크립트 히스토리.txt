@@ -11,3 +11,8 @@ user 테이블 없을시 2>/dev/null 오류문구 제거
 httpd-2.4.65 버전 rocky8.10 ,9.6 테스트 완료
 mod_jk.conf , workers.properties 파일 내용 수정
 workers.properties 내 tomcat 에서 사용될 문구 주석처리 입력
+
+25/08/26 web_passwd2 생성
+python 실행파일 생성
+was db 분리된 서버에서 동작
+web_passwd.sh 동작 동일 (was db 동일서버시 쉘에서 동작 후 종료)
