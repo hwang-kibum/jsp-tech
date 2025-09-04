@@ -16,3 +16,8 @@ workers.properties 내 tomcat 에서 사용될 문구 주석처리 입력
 python 실행파일 생성
 was db 분리된 서버에서 동작
 web_passwd.sh 동작 동일 (was db 동일서버시 쉘에서 동작 후 종료)
+
+25/09/04 miso_total.sh
+logrotate 수정 (out 파일만)
+logging.properties 수정 (maxdays, 각로그별 디렉토리 추가)
+server.xml 로그 내용 수정
