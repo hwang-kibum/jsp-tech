@@ -361,9 +361,9 @@ EOF
 #server.xml 복사
 sudo cp -arp ${tomcat_path}/conf/server.xml ${tomcat_path}/conf/server.xml.ori
 #server.xml 수정
-sudo sed -i 's|pattern="%h %l %u %t &quot;%r&quot; %s %b" />|pattern="combined" resolveHosts="false" />|' ${tomcat_path}/conf/server.xml
 sudo sed -i 's|unpackWARs="true" autoDeploy="true"|unpackWARs="false" autoDeploy="false"|' ${tomcat_path}/conf/server.xml 
 sudo sed -i 's|maxParameterCount="1000"|maxParameterCount="1000" URIEncoding="UTF-8" enableLookups="false" server="server"|' ${tomcat_path}/conf/server.xml
+
 #catalina.sh 파일 복사
 sudo cp -arp ${tomcat_path}/bin/catalina.sh ${tomcat_path}/bin/catalina.sh.ori
 #catalina.sh 파일 수정
@@ -376,14 +376,17 @@ sudo sed -i '128 i\CATALINA_OPTS="-Djava.net.preferIPv4Stack=true"' ${tomcat_pat
 #log경로 수정 
 sudo cp -arp ${tomcat_path}/conf/logging.properties  ${tomcat_path}/conf/logging.properties.ori
 sudo sed -i 's|\${catalina.base}/logs|'${tlog_path}'|g' ${tomcat_path}/conf/logging.properties
-sudo sed -i 's|logs|'${tlog_path}'|g' ${tomcat_path}/conf/server.xml
-sudo sed -i 's|txt|log|g' ${tomcat_path}/conf/server.xml
+sudo sed -ri 's#^([0-9]+)([a-z-]+)\.(.*AsyncFileHandler\.directory = )(.*)$#\1\2.\3\4/\2#' ${tomcat_path}/conf/logging.properties
+sudo sed -ri 's#(.*maxDays = ).*$#\1180#' ${tomcat_path}/conf/logging.properties
+
+sudo sed -i 's|pattern="%h %l %u %t &quot;%r&quot; %s %b" />|pattern="combined" resolveHosts="false" />|' ${tomcat_path}/conf/server.xml
+sudo sed -ri 's#(.*AccessLogValve" directory=)(.*)$#\1"'${tlog_path}'/localhost_access"#' ${tomcat_path}/conf/server.xml
+sudo sed -ri 's#(.*suffix=)(.*)$#\1".log"#' ${tomcat_path}/conf/server.xml 
+sudo sed -ri 's#(.*suffix=".log")#\1 fileDateFormat=".yyyy-MM-dd"  rotatable="true" renameOnRotate="false" maxDays="180"#'  ${tomcat_path}/conf/server.xml 
 
 ##logrotate 설정
 sudo tee ${tomcat_path}/conf-set/tomcat.logrotate > /dev/null << EOF
 ${tlog_path}/*.out
-${tlog_path}/*.log
-${tlog_path}/*.txt
 {
         daily
         rotate 180
@@ -793,7 +796,7 @@ sudo sed -i 's/<session-timeout>30<\/session-timeout>/<session-timeout>10<\/sess
 
 #LogBackup.xml
 sudo cp ${miso_path}/webapps/WEB-INF/classes/logback.xml ${miso_path}/webapps/WEB-INF/classes/logback.xml.ori
-sudo sed -i 's/<maxHistory>30</maxHistory>/<maxHistory>180</maxHistory>/g' ${miso_path}/webapps/WEB-INF/classes/logback.xml.ori
+sudo sed -i 's#<maxHistory>30</maxHistory>#<maxHistory>180</maxHistory>#g' ${miso_path}/webapps/WEB-INF/classes/logback.xml
 
 echo "####setting miso log done"
 # 소유권 수정
