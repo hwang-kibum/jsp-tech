@@ -404,7 +404,7 @@ ${tlog_path}/*.out
 }
 EOF
 chekp=$(which logrotate)
-if [ -z $ckekp ]; then
+if [ -z $chekp ]; then
         echo "check logrotate file"
 else
 	sudo ln -s ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
