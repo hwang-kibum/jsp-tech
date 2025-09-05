@@ -401,7 +401,7 @@ ${tlog_path}/*.out
         compresscmd /usr/bin/gzip
         uncompresscmd /usr/bin/gunzip
         compressoptions -9
-        create 640 login login
+        create 640 ${SERV_USER} ${SERV_USER}
         maxage 180
         size 100M
         dateext
