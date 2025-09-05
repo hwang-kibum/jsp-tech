@@ -405,6 +405,7 @@ ${tlog_path}/*.out
         maxage 180
         size 100M
         dateext
+		copytruncate
 }
 EOF
 chekp=$(which logrotate 2>/dev/null)
