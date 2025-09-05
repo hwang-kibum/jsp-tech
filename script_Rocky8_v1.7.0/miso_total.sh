@@ -384,7 +384,11 @@ sudo sed -ri 's#(.*AccessLogValve" directory=)(.*)$#\1"'${tlog_path}'/localhost_
 sudo sed -ri 's#(.*suffix=)(.*)$#\1".log"#' ${tomcat_path}/conf/server.xml 
 sudo sed -ri 's#(.*suffix=".log")#\1 fileDateFormat=".yyyy-MM-dd"  rotatable="true" renameOnRotate="false" maxDays="180"#'  ${tomcat_path}/conf/server.xml 
 
-##logrotate 설정
+## 권한 전체 수정
+sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
+sudo chown -R ${SERV_USER}:${SERV_USER} ${tlog_path}
+
+##logrotate 설정 root 권한 필요
 sudo tee ${tomcat_path}/conf-set/tomcat.logrotate > /dev/null << EOF
 ${tlog_path}/*.out
 {
@@ -403,16 +407,13 @@ ${tlog_path}/*.out
         dateext
 }
 EOF
-chekp=$(which logrotate)
+chekp=$(which logrotate 2>/dev/null)
 if [ -z $chekp ]; then
         echo "check logrotate file"
 else
 	sudo ln -s ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
+	sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.logrotate
 fi
-
-## 권한 전체 수정
-sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
-sudo chown -R ${SERV_USER}:${SERV_USER} ${tlog_path}
 echo "#####tomcat setting done"
 tomcat_service
 }
@@ -467,13 +468,16 @@ sudo ln -s ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat
 sudo systemctl daemon-reload
 sudo systemctl enable tomcat
 echo "#####make tomcat service done"
-read -p "systemctl start tomcat.service : n(not running) , y(running) >" RET
-if [ "${RET}" == "y" ]; then
-	sudo systemctl start tomcat
-elif [ "${RET}" == "n" ]; then
-	echo "after running tomcat"
-else
-	echo "not command y or n"
+
+if [[ $1 == "tomcat" ]]; then
+	read -p "systemctl start tomcat.service : n(not running) , y(running) >" RET
+	if [ "${RET}" == "y" ]; then
+		sudo systemctl start tomcat
+	elif [ "${RET}" == "n" ]; then
+		echo "after running tomcat"
+	else
+		echo "not command y or n"
+	fi
 fi
 }
 
@@ -705,23 +709,24 @@ else
 	echo ${db_path}"/bin/mysqladmin /usr/bin/mysqladmin"
 fi
 	
-	
 #### mariadb.service 지정 및 기동
 sudo ln -s ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable mariadb
 echo "#####DB setting done"
-read -p "systemctl start mariadb.service : n(not running) , y(running) >" RET
-if [ "${RET}" == "y" ]; then
-	sudo systemctl start mariadb
-elif [ "${RET}" == "n" ]; then
-	echo "after running mariadb"
-else
-	echo "not command y or n"
+
+if [[ $1 == "mariadb" ]]; then
+	read -p "systemctl start mariadb.service : n(not running) , y(running) >" RET
+	if [ "${RET}" == "y" ]; then
+		sudo systemctl start mariadb
+	elif [ "${RET}" == "n" ]; then
+		echo "after running mariadb"
+	else
+		echo "not command y or n"
+	fi
 fi
 }
-
 
 miso_install()
 {
@@ -1334,10 +1339,10 @@ main()
 			fi
 			;;
 		tomcat)
-			tomcat_install
+			tomcat_install 
 			;;
 		db)
-			db_install
+			db_install 
 			;;
 		firewalld)
 			firewalld_setting
