@@ -21,3 +21,7 @@ web_passwd.sh 동작 동일 (was db 동일서버시 쉘에서 동작 후 종료)
 logrotate 수정 (out 파일만)
 logging.properties 수정 (maxdays, 각로그별 디렉토리 추가)
 server.xml 로그 내용 수정
+
+25/09/05 miso_total.sh
+logrotate root 소유권 필요 conf-set 내 파일 소유권 변경완료
+logrotate 존재여부 관련 조건문 수정
