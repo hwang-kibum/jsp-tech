@@ -33,7 +33,7 @@ fi
 
 find_webapps_path(){
 ##find miso_webapps_path
-tomcat_home=$(ps -ef | grep $(netstat -antp | grep -w "$1" | grep -i listen | head -n 1 | awk -F " " '{print $7}' | awk -F "/" '{print $1}') | sed -n 's/.*config\.file=\(.*\)\/conf\/logging\.properties.*/\1/p')
+tomcat_home=$(ps -ef | grep $(ss -antp | grep -w "$1" | grep -i listen | head -n 1 | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}') | sed -n 's/.*config\.file=\(.*\)\/conf\/logging\.properties.*/\1/p')
 if [ -z $tomcat_home ]; then
 	echo "check tomcat_path"
 	exit 0
@@ -57,7 +57,15 @@ DB_IP=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.p
 
 db_query(){
 echo "###################################################"
-if [[ "$DB_IP" == "localhost" || "$DB_IP" == "127.0.0.1" ]]; then
+checkip=$(ip a | grep $DB_IP)
+if [[ "$DB_IP" == "localhost" || "$DB_IP" == "127.0.0.1" || ! -z "$checkip" ]]; then
+	if [[ "$1" == "all" || "$1" == "ALL" ]]; then
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update user set PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U'"
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update cms_partner_emp set EMP_PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U', LOGIN_YN='Y'"
+		echo "user , cms all change"
+		echo "###################################################"
+		return 0
+	fi
 	check_id=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select USER_ID from user where USER_ID='$1'" 2>/dev/null)
 	check_id2=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select EMP_ID from cms_partner_emp where EMP_ID='$1'" 2>/dev/null)
 	if [ ! -z $check_id ]; then
