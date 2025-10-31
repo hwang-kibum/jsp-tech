@@ -29,3 +29,7 @@ logrotate 존재여부 관련 조건문 수정
 25/09/26 initdb.sh 생성
 db 초기화 스크립트작성 ./initdb.sh db_name (EXAMPLE)
 예외 테이블, DB접속 정보 확인필요 (db서버에서 동작필요)
+
+25/10/31 web_passwd.sh 수정
+os minial 버전에서 특정 명령어 없음으로 인한 오류 수정
+최소 명령어로 동작실행 (테스트 완료)
