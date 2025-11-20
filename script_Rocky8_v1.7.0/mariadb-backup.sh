@@ -28,14 +28,7 @@ LAST_NUM=$(find /data/backup/INC/ -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 
 # 7일 주기 삭제 함수 (logs 디렉토리 보호)
 function cycle_seven_days_delete(){
     echo "Cleaning up old backups (keeping logs directory)..." >> "$LOG"
-    find /data/backup/INC/ -mindepth 1 -maxdepth 1 -type d ! -name "logs" -exec rm -rf {} +
-    echo "Cleanup completed" >> "$LOG"
-}
-
-# 7일 주기 삭제 함수 (logs 디렉토리 보호)
-function cycle_seven_days_delete(){
-    echo "Cleaning up old backups (keeping logs directory)..." >> "$LOG"
-    find /data/backup/INC/ -mindepth 1 -maxdepth 1 -type d ! -name "logs" -exec rm -rf {} +
+    find "$BACKUP_DIR/INC/" -mindepth 1 -maxdepth 1 -type d ! -name "logs" -exec rm -rf {} +
     echo "Cleanup completed" >> "$LOG"
 }
 
@@ -45,7 +38,11 @@ function full_backup() {
     echo "Starting Full Backup: $DATE" >> "$LOG"
 
     # 전체 백업
-    "$MARIADB/bin/mariadb-backup" --backup --no-lock --user="$USER" --password="$PW" \
+    "$MARIADB/bin/mariadb-backup" \
+        --backup \
+        --no-lock \
+        --user="$USER" \
+        --password="$PW" \
         --tables-exclude="$EXCLUDE_1" \
         --target-dir="${BACKUP_DIR}/INC/0/" \
         --binlog-info=ON 2>>"$LOG"
@@ -54,12 +51,14 @@ function full_backup() {
         echo "Full backup successful" >> "$LOG"
     else
         echo "ERROR: Full backup failed" >> "$LOG"
-        return 1
+        exit 1
     fi
     
     # 예외 테이블 DDL 백업
-    "$MARIADB/bin/mariadb-dump" -u"$USER" -p"$PW" --single-transaction \
-        --lock-tables=false --no-data $EX_TABLE > "${BACKUP_DIR}/INC/${EXCLUDE_1}_structure.sql"
+    "$MARIADB/bin/mariadb-dump" -u"$USER" -p"$PW" \
+        --single-transaction \
+        --lock-tables=false \
+        --no-data $EX_TABLE > "${BACKUP_DIR}/INC/${EXCLUDE_1}_structure.sql"
 
     # my.cnf 백업
     cp /etc/my.cnf "${BACKUP_DIR}/INC/my.cnf"
@@ -79,7 +78,10 @@ function incremental_backup() {
     echo "Target directory: $target_dir" >> "$LOG"
 
     # 증분 백업
-    "$MARIADB/bin/mariadb-backup" --backup --no-lock --user="$USER" --password="$PW" \
+    "$MARIADB/bin/mariadb-backup" --backup \
+        --no-lock \
+        --user="$USER" \
+        --password="$PW" \
         --tables-exclude="$EXCLUDE_1" \
         --incremental-basedir="$base_dir" \
         --target-dir="$target_dir" \
@@ -89,7 +91,7 @@ function incremental_backup() {
         echo "Incremental backup successful" >> "$LOG"
     else
         echo "ERROR: Incremental backup failed" >> "$LOG"
-        return 1
+        exit 1
     fi
 
     echo "Incremental Backup Completed: $DATE - Day $ASDOW" >> "$LOG"
