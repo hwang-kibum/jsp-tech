@@ -19,7 +19,8 @@ ASDOW=$(TZ=Asia/Seoul date +%w) # 0=Sunday ... 6=Saturday
 DATA="/data/mariadbData"
 MARIADB="/data/mariadb"
 BACKUP_DIR="/data/backup"
-LOG="/data/backup/logs/backup.log"
+LOG_DIR="$BACKUP_DIR/logs"
+LOG="$LOG_DIR/backup.log"
 
 # 마지막 백업 번호 찾기 (0-6)
 LAST_NUM=$(find /data/backup/INC/ -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
@@ -107,7 +108,7 @@ function check_create_dir(){
 }
 
 # 초기 디렉토리 생성
-check_create_dir "$LOG"
+check_create_dir "$LOG_DIR"
 check_create_dir "$BACKUP_DIR/INC"
 
 # 백업 시작 로그
