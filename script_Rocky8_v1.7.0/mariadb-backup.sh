@@ -107,7 +107,7 @@ function check_create_dir(){
 }
 
 # 초기 디렉토리 생성
-check_create_dir "/data/backup/logs/"
+check_create_dir "$LOG"
 check_create_dir "$BACKUP_DIR/INC"
 
 # 백업 시작 로그
