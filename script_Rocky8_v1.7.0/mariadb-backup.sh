@@ -20,7 +20,7 @@ DATA="/data/mariadbData"
 MARIADB="/data/mariadb"
 BACKUP_DIR="/data/backup"
 LOG_DIR="$BACKUP_DIR/logs"
-LOG="$LOG_DIR/backup.log"
+LOG="$LOG_DIR/backup_$DATE.log"
 
 # 마지막 백업 번호 찾기 (0-6)
 LAST_NUM=$(find /data/backup/INC/ -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
