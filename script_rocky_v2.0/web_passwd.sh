@@ -1,0 +1,97 @@
+#!/bin/bash
+
+check_id(){
+if [ -z $1 ]; then
+	echo "use >> $0 WEB_ID WEB_PORT"
+	exit 0
+fi
+}
+
+find_tomcat_path(){
+##find tomcat port
+passwd=''
+tomcat_port=($1)
+for port in "${tomcat_port[@]}"; do
+#echo $port
+passwd=$(curl -k -m 5 https://127.0.0.1:"$port"/system/user/getEncPassword.do  2>/dev/null | grep -i enc | cut -d ':' -f2 | sed 's/^[ \t]*//')
+if [ ! -z $passwd ]; then
+	break
+fi
+passwd=$(curl -k -m 5 http://127.0.0.1:"$port"/system/user/getEncPassword.do  2>/dev/null | grep -i enc | cut -d ':' -f2 | sed 's/^[ \t]*//')
+if [ ! -z $passwd ]; then
+	break
+fi
+
+done
+
+if [ -z $passwd ]; then
+	echo "check tomcat path or process"
+	exit 0
+fi
+#echo $passwd
+}
+
+find_webapps_path(){
+##find miso_webapps_path
+tomcat_home=$(ps -ef | grep $(ss -antp | grep -w "$1" | grep -i listen | head -n 1 | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}') | sed -n 's/.*config\.file=\(.*\)\/conf\/logging\.properties.*/\1/p')
+if [ -z $tomcat_home ]; then
+	echo "check tomcat_path"
+	exit 0
+fi
+webapps_path=$(grep -rE 'path=\"/\".*docBase=' "$tomcat_home"/conf/server.xml | grep -v '<!--' | cut -d '=' -f3 | awk '{print $1}' | sed -e 's/\"//g')
+#echo $webapps_path
+
+if [ -z $webapps_path ]; then
+	webapps_path="$tomcat_home"/webapps/ROOT
+fi
+}
+
+find_db_info(){
+##find DB_info
+DB_user=$(grep -r ^miso.db.user "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | tr -d '\r')
+DB_passwd=$(grep -r ^miso.db.password "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | tr -d '\r')
+DB_name=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties | cut -d '=' -f2 | awk -F "/" '{print $4}' | awk -F "?" '{print$1}' | tr -d '\r')
+DB_IP=$(grep -r ^miso.db.url "$webapps_path"/WEB-INF/classes/properties/system.properties |  awk -F "//" '{print $2}' | awk -F ":" '{print$1}' | tr -d '\r')
+
+}
+
+db_query(){
+echo "###################################################"
+checkip=$(ip a | grep $DB_IP)
+if [[ "$DB_IP" == "localhost" || "$DB_IP" == "127.0.0.1" || ! -z "$checkip" ]]; then
+	if [[ "$1" == "all" || "$1" == "ALL" ]]; then
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update user set PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U'"
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update cms_partner_emp set EMP_PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U', LOGIN_YN='Y'"
+		echo "user , cms all change"
+		echo "###################################################"
+		return 0
+	fi
+	check_id=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select USER_ID from user where USER_ID='$1'" 2>/dev/null)
+	check_id2=$(mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "select EMP_ID from cms_partner_emp where EMP_ID='$1'" 2>/dev/null)
+	if [ ! -z $check_id ]; then
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update user set PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U' where USER_ID = '$1'"
+		echo "'$DB_name'.'$1' change passwd"
+	elif [ ! -z $check_id2 ]; then
+		mysql -u"$DB_user" -p"$DB_passwd" "$DB_name" -Bse "update cms_partner_emp set EMP_PASSWORD = '$passwd', PWD_CHANGE_DT = now(), INSERT_DT = now(), ACCT_STATE_CD='U', LOGIN_YN='Y' where EMP_ID = '$1'"
+		echo "'$DB_name'.'$1' change passwd"
+	else
+		echo "check user id : "$1
+	fi
+
+else
+	echo "update $DB_name.user set PASSWORD = '$passwd', ACCT_STATE_CD='U' where USER_ID = '$1';"
+fi
+echo "###################################################"
+}
+
+if [ "$#" -eq 2 ]; then
+	check_id $1
+	find_tomcat_path  $2
+	find_webapps_path $2
+	find_db_info
+	db_query $1
+	exit 0
+else
+    echo "how to use >> ./webpasswd.sh web_id web_port"
+    exit 0
+fi
