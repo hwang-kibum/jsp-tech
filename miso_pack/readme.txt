@@ -1,8 +1,11 @@
- modify 00.util_Install_latest
+ modify 01.util_Install_latest
 ======================================
-miso.core.web-2.0.war
-miso.core.web-2.0.war.md5
+#copy variable
+webapps=ROOT.tar.gz                  #webapps > tar.gz 
+init_sql=miso_init_boryung.sql       #init sql query
+alter_sql=                           #plus alter query
 ======================================
+
 
 
 
