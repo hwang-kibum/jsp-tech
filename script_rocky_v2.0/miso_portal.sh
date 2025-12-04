@@ -836,25 +836,35 @@ echo "source path variable  done"
 
 editor()
 {
-if [ ! -d "../miso_pack/namo" ]; then
-	echo "namo(D) not exist"
-	exit 0
+#파일체크 
+cd ../miso_pack/
+if ls ce_*.zip >/dev/null 2>&1 || [ -d namo ]; then
+	if [ ! -d namo ]; then
+		mkdir namo
+		unzip ce_* -d namo
+	fi
+else
+	echo "check editor file"
 fi
+
+chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
+chmod -R 700 ../miso_pack/namo
+
 #war 안 namo plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
 sudo cp -r ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
 
 #websource/jsp , manage/jsp 백업
 sudo cp -r ${miso_path}/webapps/web/plugins/namo/websource/jsp ${miso_path}/webapps/web/plugins/namo/websource/jsp.ori
-sudo cp -r ${miso_path}/webapps/web/plugins/namo/manage/jsp ${miso_path}/webapps/web/plugins/namo/manage/jsp.ori
+#sudo cp -r ${miso_path}/webapps/web/plugins/namo/manage/jsp ${miso_path}/webapps/web/plugins/namo/manage/jsp.ori
 
 #UTF-8 수정
 sudo find ${miso_path}/webapps/web/plugins/namo/websource/jsp -type f -name "*.jsp" -exec sed -i '/^</s/UTF-8\>/utf-8/g' {} +
-sudo find ${miso_path}/webapps/web/plugins/namo/manage/jsp -type f -name "*.jsp" -exec sed -i '/^</s/UTF-8\>/utf-8/g' {} +
+#sudo find ${miso_path}/webapps/web/plugins/namo/manage/jsp -type f -name "*.jsp" -exec sed -i '/^</s/UTF-8\>/utf-8/g' {} +
 
 #세미콜론 분리
 sudo find ${miso_path}/webapps/web/plugins/namo/websource/jsp -type f -name "*.jsp" -exec sed -i '/^</s/;charset=utf-8/; charset=utf-8/g' {} +
-sudo find ${miso_path}/webapps/web/plugins/namo/manage/jsp -type f -name "*.jsp" -exec sed -i '/^</s/;charset=utf-8/; charset=utf-8/g' {} +
+#sudo find ${miso_path}/webapps/web/plugins/namo/manage/jsp -type f -name "*.jsp" -exec sed -i '/^</s/;charset=utf-8/; charset=utf-8/g' {} +
 
 #ImagePath.jsp 주석 제거 및 파일 수정
 sudo sed -i 's/\/\*//g' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
@@ -906,7 +916,7 @@ sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/editorImage
 #server.xml 수정
 sudo sed -i'' -r -e '/unpackWARs=/a\<Context path="/editorImage" docBase="'${miso_path}'/editorImage" reloadable="true"/>' ${tomcat_path}/conf/server.xml
 
-
+cd -
 }
 DB_RUN()
 {
@@ -994,7 +1004,7 @@ main()
 			check_file&&check_sel
 			;;
 		install)
-			tomcat_install&&db_install&&makedir&&miso_install&&
+			db_install&&tomcat_install&&makedir&&miso_install&&
 			DB_RUN&&source_sql&&firewalld_setting&&tomcat_RUN
 			;;
 		tomcat)
