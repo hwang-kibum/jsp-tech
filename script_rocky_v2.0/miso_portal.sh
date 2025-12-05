@@ -518,32 +518,32 @@ db_set()
 {
 echo "#####DB setting"
 #### Symbolic link
-result1=$(find / -name libncurses.so.5 2>/dev/null | head -n 1)
-result2=$(find / -name 'libncursesw.so.6*' 2>/dev/null | head -n 1)
-result3=$(find / -name libtinfo.so.5 2>/dev/null | head -n 1)
+result1=$(find /usr -name libncurses.so.5 2>/dev/null -print -quit)
+result2=$(find /usr -name 'libncursesw.so.6*' 2>/dev/null -print -quit)
+result3=$(find /usr -name libtinfo.so.5 2>/dev/null -print -quit)
 
 if [ -z "$result1" ]; then
-    if [ -z "$result2" ]; then
-        echo "libncursesw.so.6 check plz1"
-        exit 0
-    fi
-    first_word=$(echo "$result2" | awk -F'/' '{print $NF}')
-    path_without_last=$(echo "$result2" | awk -F'/' -v OFS='/' '{$NF=""; print $0}')
-    sudo ln -s "$result2" "$path_without_last/libncurses.so.5"
-    result1=$(find / -name libncurses.so.5 2>/dev/null | head -n 1)
-    echo "$result1"
+    if [ -n "$result2" ]; then
+		first_word=$(echo "$result2" | awk -F'/' '{print $NF}')
+		path_without_last=$(echo "$result2" | awk -F'/' -v OFS='/' '{$NF=""; print $0}')
+		sudo ln -s "$result2" "$path_without_last/libncurses.so.5"
+		result1=$(find /usr -name libncurses.so.5 2>/dev/null -print -quit)
+		echo "$result1"
+	else
+		echo "libncursesw.so.6 check plz1"
+	fi
 fi
 
 if [ -z "$result3" ]; then
-    if [ -z "$result2" ]; then
-        echo "libncursesw.so.6 check plz2"
-        exit 0
-    fi
-    first_word=$(echo "$result2" | awk -F'/' '{print $NF}')
-    path_without_last=$(echo "$result2" | awk -F'/' -v OFS='/' '{$NF=""; print $0}')
-    sudo ln -s "$result2" "$path_without_last/libtinfo.so.5"
-    result1=$(find / -name libtinfo.so.5 2>/dev/null | head -n 1)
-    echo "$result1"
+    if [ -n "$result2" ]; then
+		first_word=$(echo "$result2" | awk -F'/' '{print $NF}')
+		path_without_last=$(echo "$result2" | awk -F'/' -v OFS='/' '{$NF=""; print $0}')
+		sudo ln -s "$result2" "$path_without_last/libtinfo.so.5"
+		result1=$(find /usr -name libtinfo.so.5 2>/dev/null -print -quit)
+		echo "$result1"
+	else
+		echo "libncursesw.so.6 check plz2"
+	fi
 fi
 
 #### mariadb.service 복사 및 수정
