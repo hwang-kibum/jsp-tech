@@ -44,7 +44,7 @@ function full_backup() {
         --no-lock \
         --user="$USER" \
         --password="$PW" \
-        --tables-exclude="$EXCLUDE_1" \
+        --tables-exclude="$EXCLUDE_1" \   # --tables-exclude="$EXCLUDE_1 | $EXCLUDE_2" 
         --target-dir="${BACKUP_DIR}/INC/0/" \
         --binlog-info=ON 2>>"$LOG"
 
