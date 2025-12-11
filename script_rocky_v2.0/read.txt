@@ -7,3 +7,10 @@
 
 2025/12/05 portal.sh
 -find -print -quit (add) // disk i/o down
+
+2025/12/11 web_passwd2 (was db separate)
+- password init > passwd chage page
+
+2025/12/11 miso_backup.sh
+- direcotry, file, sql (struct + data) 
+- recover.sh check plz
