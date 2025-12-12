@@ -14,3 +14,6 @@
 2025/12/11 miso_backup.sh
 - direcotry, file, sql (struct + data) 
 - recover.sh check plz
+
+2025/12/12 miso_recover.txt
+- miso_backup.sh > read miso_recover.txt 
