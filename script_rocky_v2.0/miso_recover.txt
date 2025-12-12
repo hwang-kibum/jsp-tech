@@ -47,6 +47,15 @@ FLUSH PRIVILEGES;
 - chown -R login:login /data/java
 - chown -R login:login /data/tomcat
 [Symbolic link]
-ln -s ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
+- ln -s /data/tomcat/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
+- ln -s /data/tomcat/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
 
+4. miso recover
+- tar -xzvf miso_yyyy-mm-dd_hhmmss.tar.gz ; cp -r miso /data/miso
+- chown -R login:login /data/miso
+- systemctl start tomcat;
+
+5. firewalld setting
+- firewall-cmd --permanent --zone=public --add-port=${8080,3306}/tcp
+- firewall-cmd --reload
 
