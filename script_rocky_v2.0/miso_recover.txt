@@ -1,1 +1,28 @@
-1
+0. file check
+- java_yyyy-mm-dd_hhmmss.tar.gz
+- tomcat_yyyy-mm-dd_hhmmss.tar.gz
+- mariadb_yyyy-mm-dd_hhmmss.tar.gz
+- miso_yyyy-mm-dd_hhmmss.tar.gz
+- miso_schema_yyyy-mm-dd_hhmmss.sql
+- miso_data_yyyy-mm-dd_hhmmss.sql
+
+1. os user add / mkdir logfile
+- useradd -Ms /bin/false login 
+- useradd -Ms /bin/false mysql
+- mkdir -p /data/logs/tomcat      >> check owner
+- mkdir -p /data/logs/miso        >> check owner
+- mkdir -p /data/logs/mariadb     >> check owner 
+
+2. DB install 
+- mkdir -p /data/mariadbData
+- tar -xzvf mariadb_yyyy-mm-dd_hhmmss.tar.gz ; cp -r mariadb /data/mariadb
+- /data/mariadb/scripts/mysql_install_db --user=mysql --basedir=/data/mariadb --datadir=/data/mariadbData
+- chown -R mysql:mysql /data/mariadb*
+[library check] and [Symbolic link]
+- ln -s /usr/lib64/libncursesw.so.6 /usr/lib64/libncurses.so.5
+- ln -s /usr/lib64/libncursesw.so.6 /usr/lib64/libtinfo.so.5
+- ln -s /data/mariadb/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
+- ln -s /data/mariadb/conf-set/my.cnf /etc/my.cnf
+- cp /data/mariadb/bin/mysql /usr/bin/mysql                     >> root check
+- cp /data/mariadb/bin/mysqldump /usr/bin/mysqldump             >> root check
+
