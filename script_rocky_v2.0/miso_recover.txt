@@ -28,10 +28,18 @@
 - systemctl start mariadb.service
 
 3. schema, data, db_user recover
-mysql -u root <  miso_schema_yyyy-mm-dd_hhmmss.sql              >> create database check
-mysql -u root miso <  miso_schema_yyyy-mm-dd_hhmmss.sql       
-mysql -u root > 
-
+- mysql -u root <  miso_schema_yyyy-mm-dd_hhmmss.sql              >> create database check
+- mysql -u root miso <  miso_schema_yyyy-mm-dd_hhmmss.sql   
+- mysql -u root 
+====================================================================
+CREATE USER '${DB_USER}'@'${WAS_IP}';
+CREATE USER '${DB_USER}'@'127.0.0.1';
+CREATE USER '${DB_USER}'@'localhost';
+GRANT all PRIVILEGES ON miso.* TO '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';
+GRANT all PRIVILEGES ON miso.* TO '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWD}';
+GRANT all PRIVILEGES ON miso.* TO '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';
+FLUSH PRIVILEGES;
+===================================================================
 
 3. java , tomcat recover
 - tar -xzvf java_yyyy-mm-dd_hhmmss.tar.gz ; cp -r java /data/java
@@ -39,6 +47,6 @@ mysql -u root >
 - chown -R login:login /data/java
 - chown -R login:login /data/tomcat
 [Symbolic link]
-
+ln -s ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
 
 
