@@ -33,7 +33,7 @@ fi
 
 find_webapps_path(){
 ##find miso_webapps_path
-tomcat_home=$(ps -ef | grep $(ss -antp | grep -w "$1" | grep -i listen | head -n 1 | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}') | sed -n 's/.*config\.file=\(.*\)\/conf\/logging\.properties.*/\1/p')
+tomcat_home=$(ps -ef | grep $(ss -antp | grep -E ":$1\s" | grep -i listen | head -n 1 | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}') | sed -n 's/.*config\.file=\(.*\)\/conf\/logging\.properties.*/\1/p')
 if [ -z $tomcat_home ]; then
 	echo "check tomcat_path"
 	exit 0
