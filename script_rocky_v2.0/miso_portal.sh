@@ -997,6 +997,20 @@ source_sql()
 	
 	echo "db setting done"
 }
+setcap()
+{
+echo "setcap start"
+sudo setcap "cap_net_bind_service=+ep" ${install_path}/java/bin/java
+sudo getcap ${install_path}/java/bin/java
+
+sudo bash -c "cat > /etc/ld.so.conf.d/java.conf" << EOF
+${install_path}/java/jre/lib/amd64/jli/
+EOF
+
+sudo ldconfig | grep java
+echo "setcap done"
+}
+
 main()
 {
 	case "$1" in
@@ -1024,6 +1038,9 @@ main()
 			;;
 		editor)
 			editor
+			;;
+		setcap)
+			setcap
 			;;
 		*)
 			echo "Usage: $0 {check|install}"
