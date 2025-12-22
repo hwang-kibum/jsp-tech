@@ -11,23 +11,6 @@ DATE=$(date "+%Y-%m-%d")
 install_path=/data
 local_backup_path=/backup
 
-#backup scp file
-scp_opt=n
-remote_user=root
-remote_ip=192.168.45.101
-remote_path=/tmp
-remote_port=22
-
-#split opt
-split_opt=n
-split_size=100m
-
-#host서버내 DB설치 확인(백업시 DB제외옵션)
-host_in_db=y
-
-#DB 백업시 (n)DB_NAME/(y)--all-databases
-dbfullbackup=n
-
 DP_ENC=
 DRP_ENC=
 RP_ENC=
@@ -51,7 +34,7 @@ DB_NAME=miso
 JAVAFILE=jdk-8u451-linux-x64.tar.gz
 ############################################
 #tomcat variable
-TOMCATFILE=apache-tomcat-9.0.112.tar.gz
+TOMCATFILE=apache-tomcat-9.0.113.tar.gz
 ############################################
 #mariadb variable
 DBFILE=mariadb-11.4.9-linux-systemd-x86_64.tar.gz
