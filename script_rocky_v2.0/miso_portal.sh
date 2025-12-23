@@ -991,7 +991,7 @@ source_sql()
 	mysql -u root -Bse "FLUSH PRIVILEGES"
 	
 	mysql -u root ${DB_NAME} < ../miso_pack/${init_sql}
-	if [ -n "${alter_sql}" ] && [ -e "../test/${alter_sql}" ]; then
+	if [ -n "${alter_sql}" ] && [ -e "../miso_pack/${alter_sql}" ]; then
 		mysql -u root ${DB_NAME} --force < ../miso_pack/${alter_sql}
 	fi
 	
