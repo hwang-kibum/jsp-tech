@@ -24,3 +24,8 @@
 2025/12/23 miso_vulnerability.sh
 - mariadb.service umask change (add)
 - mariadbData g-w,o-rwx change (add)
+
+2025/12/31 miso_vulnerability.sh
+- rocky 9 faillock add
+- condition double data (run twice)
+- DB root password query change
