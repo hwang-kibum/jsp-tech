@@ -45,7 +45,7 @@ MISOWAR=miso.core.web-2.0.war
 #apache variable
 apache_path="${install_path}/httpd"
 pcre_file=pcre-8.45.tar.gz
-apr_file=apr-1.7.5.tar.gz
+apr_file=apr-1.7.6.tar.gz
 apr_util_file=apr-util-1.6.3.tar.gz
 apache_file=httpd-2.4.65.tar.gz
 connector_file=tomcat-connectors-1.2.50-src.tar.gz
