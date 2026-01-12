@@ -38,8 +38,10 @@ rpmupdate()
 {
 mkdir rpmfile
 cd rpmfile
-dnf download --resolve gcc gcc-c++ make expat expat-devel openssl-devel pcre-devel httpd-devel autoconf libtool apr-util-devel  mod_ssl zlib zlib-devel 
-dnf localinstall --disablerepo="*" --cacheonly *.rpm
+dnf -y install gcc gcc-c++ make expat expat-devel openssl-devel pcre-devel httpd-devel autoconf libtool apr-util-devel mod_ssl zlib zlib-devel 
+#dnf download --resolve gcc gcc-c++ make expat expat-devel openssl-devel pcre-devel httpd-devel autoconf libtool apr-util-devel mod_ssl zlib zlib-devel 
+#dnf localinstall --disablerepo="*" --cacheonly *.rpm
+#rpm -ivh *.rpm
 cd -
 }
 
@@ -74,6 +76,7 @@ cd -
 tar -xzvf ../apache/${apache_file} -C ${apache_path}/src/httpd --strip-components=1
 cd ${apache_path}/src/httpd
 ./configure --prefix=${apache_path} --enable-mods-shared=all --enable-so --enable-rewrite --enable-ssl -with-ssl=/usr/bin/openssl --enable-modules=ssl --enable-modules=shared --enable-mpms-shared=all --with-apr=${apache_path}/apr --with-apr-util=${apache_path}/apr-util
+
 make && make install 
 cd -
 #httpd.conf 수정
