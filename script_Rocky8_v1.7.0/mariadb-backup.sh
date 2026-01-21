@@ -14,7 +14,7 @@ LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 
 ###################################################
 #DB 계정정보
 USER="root"
-PW="Kbhwang890!@"
+PW="PASSWORD"
 #DB Name
 DB_NM="miso"
 #mariadb Basedir
