@@ -26,7 +26,7 @@ LOG_DIR="$BACKUP_DIR/logs"
 #로그 파일
 LOG="${LOG_DIR}/backup_$DATE.log"
 #LOG remove day
-LOG_REMOVE_DAYS=3
+LOG_REMOVE_DAYS=60
 
 #예외 테이블 리스트
 EXCLUDE_LIST=(
