@@ -1,9 +1,20 @@
 #!/bin/bash
-
-#계정정보
+###################################################
+#                const variables                  #
+###################################################
+#년-월-일
+DATE=$(date +%Y-%m-%d)
+#요일 확인  0=Sunday ... 6=Saturday
+ASDOW=$(TZ=Asia/Seoul date +%w)
+# 마지막 백업 번호 찾기 (0-6)
+LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
+           grep -oE '[0-6]$' | sort -n | tail -n1)
+###################################################
+#                global variables                 #
+###################################################
+#DB 계정정보
 USER="root"
 PW="Kbhwang890!@"
-
 #DB Name
 DB_NM="miso"
 #mariadb Basedir
@@ -16,10 +27,6 @@ LOG_DIR="$BACKUP_DIR/logs"
 LOG="${LOG_DIR}/backup_$DATE.log"
 #LOG remove day
 LOG_REMOVE_DAYS=3
-#년-월-일
-DATE=$(date +%Y-%m-%d)
-#요일 확인  0=Sunday ... 6=Saturday
-ASDOW=$(TZ=Asia/Seoul date +%w)
 
 #예외 테이블 리스트
 EXCLUDE_LIST=(
@@ -38,17 +45,9 @@ STRUCTURE_ONLY_LIST=(
 )
 STRUCTURE_TABLE_STR="${STRUCTURE_ONLY_LIST[*]}"
 MY_CNF="/etc/my.cnf"
-
-CORE=2
-
-
-
-
-
-# 마지막 백업 번호 찾기 (0-6)
-LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
-           grep -oE '[0-6]$' | sort -n | tail -n1)
-
+###################################################
+#                     function                    #
+###################################################
 # 로그 디렉토리 정리 함수
 function log_file_remove() {
     if [ -d "${LOG_DIR}" ]; then
@@ -167,6 +166,10 @@ function check_create_dir(){
         echo "Created directory: $1" >> "$LOG"
     fi
 }
+
+###################################################
+#                   start script                  #
+###################################################
 
 # 초기 디렉토리 생성
 check_create_dir "$LOG_DIR"
