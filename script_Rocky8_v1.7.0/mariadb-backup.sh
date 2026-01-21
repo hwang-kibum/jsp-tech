@@ -51,9 +51,9 @@ LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 
            grep -oE '[0-6]$' | sort -n | tail -n1)
 
 # 로그 디렉토리 정리 함수
-function log_dir_remove() {
+function log_file_remove() {
     if [ -d "${LOG_DIR}" ]; then
-        echo "log_dir_remove ${LOG_DIR} " >> "$LOG"
+        echo "log_file_remove ${LOG_DIR} " >> "$LOG"
         find ${LOG_DIR}/* -type f -mtime +${LOG_REMOVE_DAYS} -exec rm -rf {} \;
     fi
 }
@@ -191,6 +191,7 @@ case $ASDOW in
         # 0번 디렉토리 생성 및 전체 백업
         check_create_dir "${BACKUP_DIR}/INC/0"
         full_backup
+        log_file_remove
         ;;
 
     1|2|3|4|5|6)  # 월요일(1) ... 토요일(6) - 증분백업
@@ -200,6 +201,7 @@ case $ASDOW in
             cycle_seven_days_delete
             check_create_dir "${BACKUP_DIR}/INC/0"
             full_backup
+            log_file_remove
         else
             # 증분 백업 수행
             echo "Previous backup found: $LAST_NUM" >> "$LOG"
@@ -214,9 +216,11 @@ case $ASDOW in
                 cycle_seven_days_delete
                 check_create_dir "${BACKUP_DIR}/INC/0"
                 full_backup
+                log_file_remove
             else
                 check_create_dir "$CURRENT_BACKUP"
                 incremental_backup "$LAST_BACKUP" "$CURRENT_BACKUP"
+                log_file_remove
             fi
         fi
         ;;
