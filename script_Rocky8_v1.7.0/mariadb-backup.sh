@@ -16,7 +16,7 @@ EXCLUDE_LIST=(
 EXCLUDE_PATTERN=$(printf "|%s" "${EXCLUDE_LIST[@]}")
 EXCLUDE_PATTERN=${EXCLUDE_PATTERN:1} # 맨 앞의 '|' 제거
 
-#예외 테이블중 구조 다운받을 리스트
+#예외 테이블중 구조만 백업받을 리스트
 STRUCTURE_ONLY_LIST=(
         "mail_send"
         "user_action_log"
