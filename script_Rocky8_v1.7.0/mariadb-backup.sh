@@ -6,6 +6,20 @@ PW="Kbhwang890!@"
 
 #DB Name
 DB_NM="miso"
+#mariadb Basedir
+MARIADB="/data/mariadb"
+#백업경로
+BACKUP_DIR="/backup"
+#로그 경로
+LOG_DIR="$BACKUP_DIR/logs"
+#로그 파일
+LOG="${LOG_DIR}/backup_$DATE.log"
+#LOG remove day
+LOG_REMOVE_DAYS=3
+#년-월-일
+DATE=$(date +%Y-%m-%d)
+#요일 확인  0=Sunday ... 6=Saturday
+ASDOW=$(TZ=Asia/Seoul date +%w)
 
 #예외 테이블 리스트
 EXCLUDE_LIST=(
@@ -27,24 +41,9 @@ MY_CNF="/etc/my.cnf"
 
 CORE=2
 
-#년-월-일
-DATE=$(date +%Y-%m-%d)
 
-#요일 확인  0=Sunday ... 6=Saturday
-ASDOW=$(TZ=Asia/Seoul date +%w)
 
-#mariadb Basedir
-MARIADB="/data/mariadb"
 
-#백업경로
-BACKUP_DIR="/backup"
-
-#로그 경로
-LOG_DIR="$BACKUP_DIR/logs"
-#로그 파일
-LOG="${LOG_DIR}/backup_$DATE.log"
-#LOG remove day
-LOG_REMOVE_DAYS=3
 
 # 마지막 백업 번호 찾기 (0-6)
 LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
