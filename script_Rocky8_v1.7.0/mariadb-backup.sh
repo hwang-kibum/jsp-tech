@@ -37,7 +37,7 @@ ASDOW=$(TZ=Asia/Seoul date +%w)
 MARIADB="/data/mariadb"
 
 #백업경로
-BACKUP_DIR="/backup1"
+BACKUP_DIR="/backup"
 
 #로그 경로
 LOG_DIR="$BACKUP_DIR/logs"
