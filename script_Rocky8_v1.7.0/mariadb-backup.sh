@@ -3,33 +3,33 @@
 #                global variables                 #
 ###################################################
 #DB 계정정보
-USER="root"
-PW="Kbhwang890!@"
+USER="USER"
+PW="PASSWORD"
 #DB Name
 DB_NM="miso"
 
 #mariadb Basedir
 MARIADB="/data/mariadb"
 #백업경로
-BACKUP_DIR="/backup3"
+BACKUP_DIR="/backup"
 
 #LOG remove day
 LOG_REMOVE_DAYS=60
 
 #예외 테이블 리스트
 EXCLUDE_LIST=(
-        "${DB_NM}.mail_send"
-        "${DB_NM}.user_action_log"
-        "${DB_NM}.user_login_log"
+        "${DB_NM}.exclude_table1"
+        "${DB_NM}.exclude_table2"
+        "${DB_NM}.exclude_table3"
 )
 EXCLUDE_PATTERN=$(printf "|%s" "${EXCLUDE_LIST[@]}")
 EXCLUDE_PATTERN=${EXCLUDE_PATTERN:1} # 맨 앞의 '|' 제거
 
 #예외 테이블중 구조만 백업받을 리스트
 STRUCTURE_ONLY_LIST=(
-        "mail_send"
-        "user_action_log"
-        "user_login_log"
+        "exclude_table1"
+        "exclude_table2"
+        "exclude_table3"
 )
 STRUCTURE_TABLE_STR="${STRUCTURE_ONLY_LIST[*]}"
 MY_CNF="/etc/my.cnf"
@@ -96,7 +96,6 @@ function my_cnf_backup(){
                 cp ${MY_CNF} "${BACKUP_DIR}/INC/my.cnf"
         fi
 }
-
 
 # 전체 백업 함수
 function full_backup() {
@@ -243,5 +242,3 @@ esac
 echo "Backup process finished at: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$LOG"
 echo "========================================" >> "$LOG"
 echo "" >> "$LOG"
-~
-~
