@@ -1,30 +1,18 @@
 #!/bin/bash
 ###################################################
-#                const variables                  #
-###################################################
-#년-월-일
-DATE=$(date +%Y-%m-%d)
-#요일 확인  0=Sunday ... 6=Saturday
-ASDOW=$(TZ=Asia/Seoul date +%w)
-# 마지막 백업 번호 찾기 (0-6)
-LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
-           grep -oE '[0-6]$' | sort -n | tail -n1)
-###################################################
 #                global variables                 #
 ###################################################
 #DB 계정정보
 USER="root"
-PW="PASSWORD"
+PW="Kbhwang890!@"
 #DB Name
 DB_NM="miso"
+
 #mariadb Basedir
 MARIADB="/data/mariadb"
 #백업경로
-BACKUP_DIR="/backup"
-#로그 경로
-LOG_DIR="$BACKUP_DIR/logs"
-#로그 파일
-LOG="${LOG_DIR}/backup_$DATE.log"
+BACKUP_DIR="/backup3"
+
 #LOG remove day
 LOG_REMOVE_DAYS=60
 
@@ -45,6 +33,25 @@ STRUCTURE_ONLY_LIST=(
 )
 STRUCTURE_TABLE_STR="${STRUCTURE_ONLY_LIST[*]}"
 MY_CNF="/etc/my.cnf"
+
+###################################################
+#                const variables                  #
+###################################################
+#년-월-일
+DATE=$(date +%Y-%m-%d)
+#요일 확인  0=Sunday ... 6=Saturday
+ASDOW=$(TZ=Asia/Seoul date +%w)
+# 마지막 백업 번호 찾기 (0-6)
+LAST_NUM=$(find ${BACKUP_DIR}/INC -mindepth 1 -maxdepth 1 -type d -name '[0-6]' 2>/dev/null | \
+           grep -oE '[0-6]$' | sort -n | tail -n1)
+
+#로그 경로
+LOG_DIR="$BACKUP_DIR/logs"
+
+#로그파일
+LOG="${LOG_DIR}/backup_$DATE.log"
+
+
 ###################################################
 #                     function                    #
 ###################################################
@@ -63,9 +70,9 @@ function cycle_seven_days_delete(){
     echo "Cleanup completed" >> "$LOG"
 }
 
-# 예외 테이블중 구조백업필요한 경우 
+# 예외 테이블중 구조백업필요한 경우
 function structure_backup(){
-    # 리스트가 0보다 커야한다. 
+    # 리스트가 0보다 커야한다.
     if [ ${#STRUCTURE_ONLY_LIST[@]} -gt 0 ]; then
         echo "dumping structure for table: ${STRUCTURE_ONLY_LIST[*]}" >> "${LOG}"
         "$MARIADB/bin/mariadb-dump" -u"$USER" -p"$PW" \
@@ -74,7 +81,7 @@ function structure_backup(){
                 --no-data \
                 "${DB_NM}" "${STRUCTURE_ONLY_LIST[@]}" > "${BACKUP_DIR}/INC/no_data_structure_tables.sql"
         if [ $? -eq 0 ]; then
-                    echo "Structure dump successful" >> "${LOG} "
+                    echo "Structure dump successful" >> "${LOG}"
         else
                     echo "ERROR: Structure dump failed. Check table names." >> "${LOG}"
         fi
@@ -236,3 +243,5 @@ esac
 echo "Backup process finished at: $(date +%Y-%m-%d\ %H:%M:%S)" >> "$LOG"
 echo "========================================" >> "$LOG"
 echo "" >> "$LOG"
+~
+~
