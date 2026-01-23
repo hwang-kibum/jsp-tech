@@ -35,11 +35,11 @@ print_usage() {
     echo "  $0 set <user@host> <policy>  # 설정 모드"
     echo ""
     echo "설정 모드 예시:"
-    echo "  $0 set root@localhost never"
-    echo "  $0 set root@localhost 90"
-    echo "  $0 set root@localhost default"
-    echo "  $0 set root@localhost reset 'Password@1!@#'"
-    echo "  $0 set root@localhost reset-with 'Password@1!@#' 90"
+    echo "  $0 set root@localhost never"  # 비밀번호 만료 안함
+    echo "  $0 set root@localhost 90"     # 비밀번호 만료 90일
+    echo "  $0 set root@localhost default" # 비밀번호 만료 전역 설정 따름
+    echo "  $0 set root@localhost reset 'Password@1!@#'" # 비밀번호 변경시 만료일 무기한으로 설정됨
+    echo "  $0 set root@localhost reset-with 'Password@1!@#' 90" # 비밀번호 변경시 만료일 90일로 설정됨
     echo ""
     echo "주의: 특수문자가 포함된 비밀번호는 반드시 작은따옴표('')로 감싸주세요!"
     echo ""
