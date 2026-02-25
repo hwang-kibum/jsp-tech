@@ -17,7 +17,6 @@ check_disk="
 /data
 /home
 "
-
 for i in $check_disk; do
     option="${option}|${i}\$"
 done
@@ -42,12 +41,24 @@ for host in "${!server_info[@]}"; do
         echo '=== Memory ==='
         free -h | awk 'NR==2{print \$3\"/\"\$2}'
         echo '=== Disk ==='
-        df -h | awk 'NR==1'
-        df -hP | egrep 'Mounted on $option'
+        df -h | awk 'NR==1 {printf \"%-15s %-8s %-8s %-8s %s\n\", \$6,\$2,\$3,\$4,\$5}'
+        df -hP | egrep 'Mounted on $option' | awk '{printf \"%-15s %-8s %-8s %-8s %s\n\", \$6,\$2,\$3,\$4,\$5}'
         " 2>&1 | tr -d '\r')
     echo "$result" >> tmp.txt
     echo "" >> tmp.txt
 done
+
+ENCODED_TITLE="=?UTF-8?B?$(echo -n "$TITLE" | base64)?="
 for user in $send_user; do
-        cat tmp.txt |tr -d '\r'| mail -s "$TITLE" "$user"
+    (
+        echo "To: $user"
+        echo "Subject: $ENCODED_TITLE"
+        echo "MIME-Version: 1.0"
+        echo "Content-Type: text/html; charset=UTF-8"
+        echo ""
+        echo "<html><body>"
+        echo "<pre style='font-family: monospace; font-size: 14px; line-height: 1.0; margin: 0; padding: 0;'>"
+        cat tmp.txt | sed 's/^[[:space:]]*//'
+        echo "</pre></body></html>"
+    ) | sendmail -t
 done
