@@ -41,14 +41,16 @@ if [ "Enforcing" == ${CURRENT_SEL} ];then
 			sudo setenforce 0
 			sudo sed -i 's/SELINUX='${CONF_SEL}'/SELINUX=disabled/g' /etc/selinux/config
 		fi
-elif [ "Permissive" == ${CURRENT_SEL} ];then
+elif [ "Permissive" == ${CURRENT_SEL} ] ;then
 	echo "CURRENT SELINUX : ${CURRENT_SEL}"
-	read -p "change SELINUX DISABLED : yes(enter key) or no(n key):  >" RET
-		if [ "${RET}" = "n" ]; then
-			echo "change SELINUX Config later"
-		else
-			sudo sed -i 's/SELINUX='${CONF_SEL}'/SELINUX=disabled/g' /etc/selinux/config
-		fi
+	if [ "disabled" != ${CONF_SEL} ]; then
+		read -p "change SELINUX DISABLED : yes(enter key) or no(n key):  >" RET
+			if [ "${RET}" = "n" ]; then
+				echo "change SELINUX Config later"
+			else
+				sudo sed -i 's/SELINUX='${CONF_SEL}'/SELINUX=disabled/g' /etc/selinux/config
+			fi
+	fi
 elif [ "Disabled" == ${CURRENT_SEL} ];
 	echo "CURRENT SELINUX : ${CURRENT_SEL}"
 then
@@ -918,8 +920,8 @@ sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
 sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/editorImage
 #server.xml 수정
 sudo sed -i'' -r -e '/unpackWARs=/a\<Context path="/editorImage" docBase="'${miso_path}'/editorImage" reloadable="true"/>' ${tomcat_path}/conf/server.xml
-
 cd -
+echo "namo setting done"
 }
 
 crossviewer()
@@ -942,6 +944,7 @@ sudo mv -f ${miso_path}/webapps/web/plugins/crossViewer ${miso_path}/webapps/web
 sudo cp -rp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
 sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|preview.temp.file.abs.path=.*|preview.temp.file.abs.path='${miso_path}'/webapps/web/plugins/crossViewer/viewerTempFile|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+echo "CrossViewer setting done"
 }
 ssl()
 {
@@ -979,6 +982,9 @@ echo "
                clientAuth=\"false\" sslProtocol=\"TLS\"
                keystoreFile=\"${miso_path}/ssl/jsp.jks\" keystorePass=\"password\">
     </Connector>
+########################################################################
+vi ${tomcat_path}/conf/server.xml
+
 "
 }
 
@@ -1079,7 +1085,6 @@ echo "================================================"
 echo " Usage: $0 [option]"
 echo "================================================"
 echo " Options:"
-# case "$1" in 구간만 파싱
 sed -n '/case "\$1" in/,/esac/p' "$0" | \
 grep -E '^\s+[a-zA-Z]{2,}\)' | \
 grep -v '#' | \
@@ -1093,6 +1098,7 @@ main()
 			check_file&&check_sel
 			;;
 		install)
+			check_file&&check_sel&&
 			db_install&&tomcat_install&&makedir&&miso_install&&
 			DB_RUN&&source_sql&&firewalld_setting&&tomcat_RUN
 			;;
