@@ -185,7 +185,6 @@ if [[ "$DEC_VALUE" == "" ]]; then
 	echo ""
 else
 	echo $DEC_VALUE
-	echo " DB PASSWORD  : ${DB_PASSWD}" | tee /dev/tty | sed 's/\(DB PASSWORD.*:\).*/\1 ********/' >> "$SCRIPTLOGFILE"
 fi
 }
 makedir()
