@@ -33,3 +33,11 @@
 2026/02/25 servercheck.sh
 - server monitor check (cpu , memory , disk)
 - need >>> sendamil
+
+2026/02/26 miso_portal.sh
+- add function crossviewer, ssl, help
+- crossviewer(f) need (crossViewer dir) or (CrossViewer*.zip)
+- ssl(f) make jsp.jks need password , after show Nioprotocol example
+- help(f) show after funtion option auto
+
+
