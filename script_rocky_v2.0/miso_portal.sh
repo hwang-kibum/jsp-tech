@@ -174,6 +174,20 @@ fi
 checkuserdb=1
 }
 
+decoding()
+{
+exec 3>&1      
+exec > /dev/tty
+salt=$(printf $SERV_USER | md5sum | cut -c1-16)
+DEC_VALUE=$(echo $1 | openssl enc -aes-256-cbc -a -d -S $salt -pbkdf2 -iter 100000 -pass pass:$MY_USER 2>/dev/null)
+if [[ "$DEC_VALUE" == "" ]]; then
+	#echo "incorrect data : " $1
+	echo ""
+else
+	echo $DEC_VALUE
+	echo " DB PASSWORD  : ${DB_PASSWD}" | tee /dev/tty | sed 's/\(DB PASSWORD.*:\).*/\1 ********/' >> "$SCRIPTLOGFILE"
+fi
+}
 makedir()
 {
 echo "================================="
@@ -800,11 +814,12 @@ db_setting_check()
 {
 echo "================================="
 echo " HOST IP      : ${HOST_IP}"
-echo " WAS IP      : ${WAS_IP}"
+echo " WAS IP       : ${WAS_IP}"
 echo " DB IP        : ${DB_IP}"
 echo " DB PORT      : ${DB_PORT}"
 echo " DB USER      : ${DB_USER}"
-echo " DB PASSWORD  : ${DB_PASSWD}"
+#echo " DB PASSWORD  : ${DB_PASSWD}"
+echo " DB PASSWORD  : ${DB_PASSWD}" | tee /dev/tty | sed 's/\(DB PASSWORD.*:\).*/\1 ********/' >> "$SCRIPTLOGFILE"
 echo " DB DATABASE  : ${DB_NAME}"
 echo " next (press y or anykey)"
 echo " modify (press n) "
@@ -1128,6 +1143,9 @@ main()
 			;;
 		setcap)
 			setcap
+			;;
+		decode)
+			decoding $2
 			;;
 		 help|--help|-h)
 			usage
