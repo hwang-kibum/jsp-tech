@@ -35,9 +35,12 @@
 - need >>> sendamil
 
 2026/02/26 miso_portal.sh
-- add function crossviewer, ssl, help
+- add function crossviewer, ssl, help, decode
 - crossviewer(f) need (crossViewer dir) or (CrossViewer*.zip)
 - ssl(f) make jsp.jks need password , after show Nioprotocol example
 - help(f) show after funtion option auto
+- decode(f) input incoding passwd > decode passwd (not logging)
+- log in dbpassword masking
+
 
 
