@@ -507,6 +507,22 @@ else
 	sudo mkdir -p ${dbdata_path}
 	echo "mkdir DB DATA path done"
 fi
+
+#### /etc/my.cnf 확인
+if [ -e "/etc/my.cnf" ] ||  [ -L "/etc/my.cnf" ]; then
+	echo "/etc/my.cnf already exist"
+	read -p "/etc/my.cnf mv /etc/my.cnf.ori : yes(enter key) or no(n key) : >" RET
+	if [ "${RET}" == "n" ]; then
+		echo "change my.cnf path "
+		return 0
+	else
+		echo "mv file"
+		sudo unlink /etc/my.cnf
+		sudo mv -f /etc/my.cnf /etc/my.cnf.ori 2>/dev/null
+		echo "mv file done"
+	fi
+fi
+
 sudo tar -xzf ../mariadb/"${DBFILE}"* -C ${db_path} --strip-components=1 >/dev/null 2>&1
 sudo mkdir -p ${db_path}/conf-set
 sudo ${db_path}/scripts/mysql_install_db --user=${MY_USER} --basedir=${db_path} --datadir=${dbdata_path}
@@ -614,20 +630,6 @@ sudo chown -R ${MY_USER}:${MY_USER} ${db_path}
 sudo chown -R ${MY_USER}:${MY_USER} ${dbdata_path}
 sudo chown -R ${MY_USER}:${MY_USER} ${dlog_path}
 
-#### /etc/my.cnf 확인
-if [ -e "/etc/my.cnf" ] ||  [ -L "/etc/my.cnf" ]; then
-	echo "/etc/my.cnf already exist"
-	read -p "/etc/my.cnf mv /etc/my.cnf.ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "change my.cnf path "
-		return 0
-	else
-		echo "mv file"
-		sudo unlink /etc/my.cnf
-		sudo mv -f /etc/my.cnf /etc/my.cnf.ori 2>/dev/null
-		echo "mv file done"
-	fi
-fi
 echo "##### /etc/my.cnf sybolic link"
 sudo ln -s ${db_path}/conf-set/my.cnf /etc/my.cnf
 #### mysql bin 파일 복사
@@ -845,6 +847,7 @@ if ls ce_*.zip >/dev/null 2>&1 || [ -d namo ]; then
 	fi
 else
 	echo "check editor file"
+	exit 0
 fi
 
 chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
@@ -852,7 +855,7 @@ chmod -R 700 ../miso_pack/namo
 
 #war 안 namo plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
-sudo cp -r ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
+sudo cp -rp ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
 
 #websource/jsp , manage/jsp 백업
 sudo cp -r ${miso_path}/webapps/web/plugins/namo/websource/jsp ${miso_path}/webapps/web/plugins/namo/websource/jsp.ori
@@ -908,7 +911,7 @@ if [ -d "${miso_path}/editorImage/namo" ]; then
 	echo "mv file done"
 fi
 
-sudo cp -r ${miso_path}/webapps/web/plugins/namo ${miso_path}/editorImage/.
+sudo cp -rp ${miso_path}/webapps/web/plugins/namo ${miso_path}/editorImage/.
 
 #소유권 수정
 sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
@@ -918,6 +921,67 @@ sudo sed -i'' -r -e '/unpackWARs=/a\<Context path="/editorImage" docBase="'${mis
 
 cd -
 }
+
+crossviewer()
+{
+cd ../miso_pack/
+if ls CrossViewer*.zip >/dev/null 2>&1 || [ -d crossViewer ]; then
+	if [ ! -d crossViewer ]; then
+		mkdir crossViewer
+		unzip CrossViewer* -d crossViewer
+	fi
+else
+	echo "check editor file"
+	exit 0
+fi
+chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/crossViewer
+chmod -R 700 ../miso_pack/crossViewer
+
+#war 안 crossViewer plugin 파일 백업
+sudo mv -f ${miso_path}/webapps/web/plugins/crossViewer ${miso_path}/webapps/web/plugins/crossViewer.ori
+sudo cp -rp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
+sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i 's|preview.temp.file.abs.path=.*|preview.temp.file.abs.path='${miso_path}'/webapps/web/plugins/crossViewer/viewerTempFile|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+}
+ssl()
+{
+mkdir -p ${miso_path}/ssl
+
+if [ ! -e "../jdk/${JAVAFILE}" ]; then
+	echo ${JAVAFILE}" not exist"
+	exit 0
+elif [ ! -e "../tomcat/${TOMCATFILE}" ]; then
+	echo ${TOMCATFILE}" not exist"
+	exit 0
+fi
+
+echo "checking java install"
+if [ -d "${install_path}/java" ]; then
+	echo ${install_path}"/java installed"
+else
+	read -p "install java : yes(enter key) or no(n key) >" RET
+	if [ "${RET}" == "n" ]; then
+		echo "please install java"
+		exit 0
+	else
+		install_java
+	fi
+fi
+
+${install_path}/java/bin/keytool -genkey -storetype jks -keystore jsp.jks -keyalg RSA -keysize 2048 -startdate "${DATE//-//} 00:00:00" -validity 3650 -dname "CN=jsp, OU=jsp, O=jsp, L=jsp, ST=jsp, C=jsp"
+mv jsp.jks ${miso_path}/ssl
+chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/ssl
+
+echo "
+    <Connector port=\"8443\" protocol=\"org.apache.coyote.http11.Http11NioProtocol\"
+               maxThreads=\"150\" SSLEnabled=\"true\"
+               scheme=\"https\" secure=\"true\"
+               clientAuth=\"false\" sslProtocol=\"TLS\"
+               keystoreFile=\"${miso_path}/ssl/jsp.jks\" keystorePass=\"password\">
+    </Connector>
+"
+}
+
 DB_RUN()
 {
 echo "#### DB RUN"
@@ -1010,7 +1074,18 @@ EOF
 sudo ldconfig | grep java
 echo "setcap done"
 }
-
+usage() {
+echo "================================================"
+echo " Usage: $0 [option]"
+echo "================================================"
+echo " Options:"
+# case "$1" in 구간만 파싱
+sed -n '/case "\$1" in/,/esac/p' "$0" | \
+grep -E '^\s+[a-zA-Z]{2,}\)' | \
+grep -v '#' | \
+awk -F')' '{gsub(/\t| /,"",$1); printf "  %-15s\n", $1}'
+echo "================================================"
+}
 main()
 {
 	case "$1" in
@@ -1039,8 +1114,17 @@ main()
 		editor)
 			editor
 			;;
+		crossviewer)
+			crossviewer
+			;;
+		ssl)
+			ssl
+			;;
 		setcap)
 			setcap
+			;;
+		 help|--help|-h)
+			usage
 			;;
 		*)
 			echo "Usage: $0 {check|install}"
