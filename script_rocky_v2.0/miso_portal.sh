@@ -850,13 +850,13 @@ editor()
 {
 #파일체크 
 cd ../miso_pack/
-if ls ce_*.zip >/dev/null 2>&1 || [ -d namo ]; then
-	if [ ! -d namo ]; then
+if ls ce_*.zip >/dev/null 2>&1 || [ "$(ls -A namo 2>/dev/null)" ]; then
+	if [ ! -d namo ] && [ "$(which unzip 2>/dev/null)" ]; then
 		mkdir namo
 		unzip ce_* -d namo
 	fi
 else
-	echo "check editor file"
+	echo "check editor file or unzip"
 	exit 0
 fi
 
@@ -934,15 +934,16 @@ echo "namo setting done"
 crossviewer()
 {
 cd ../miso_pack/
-if ls CrossViewer*.zip >/dev/null 2>&1 || [ -d crossViewer ]; then
-	if [ ! -d crossViewer ]; then
+if ls CrossViewer*.zip >/dev/null 2>&1 || [ "$(ls -A crossViewer 2>/dev/null)" ]; then
+	if [ ! -d crossViewer ] && [ "$(which unzip 2>/dev/null)" ]; then
 		mkdir crossViewer
 		unzip CrossViewer* -d crossViewer
 	fi
 else
-	echo "check editor file"
+	echo "check crossviewer file or unzip"
 	exit 0
 fi
+
 chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/crossViewer
 chmod -R 700 ../miso_pack/crossViewer
 
@@ -978,7 +979,20 @@ else
 	fi
 fi
 
-${install_path}/java/bin/keytool -genkey -storetype jks -keystore jsp.jks -keyalg RSA -keysize 2048 -startdate "${DATE//-//} 00:00:00" -validity 3650 -dname "CN=jsp, OU=jsp, O=jsp, L=jsp, ST=jsp, C=jsp"
+while true; do
+    read -s -p "Keystore Password: " KEYPASS
+    echo
+    read -s -p "Confirm Password: " KEYPASS2
+    echo
+
+    if [[ "$KEYPASS" == "$KEYPASS2" ]]; then
+        break
+    else
+        echo "Password mismatch. Try again."
+    fi
+done
+
+${install_path}/java/bin/keytool -genkey -storetype jks -keystore jsp.jks -storepass "$KEYPASS" -keypass "$KEYPASS" -keyalg RSA -keysize 2048 -startdate "${DATE//-//} 00:00:00" -validity 3650 -dname "CN=jsp, OU=jsp, O=jsp, L=jsp, ST=jsp, C=jsp"
 mv jsp.jks ${miso_path}/ssl
 chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/ssl
 
@@ -987,7 +1001,7 @@ echo "
                maxThreads=\"150\" SSLEnabled=\"true\"
                scheme=\"https\" secure=\"true\"
                clientAuth=\"false\" sslProtocol=\"TLS\"
-               keystoreFile=\"${miso_path}/ssl/jsp.jks\" keystorePass=\"password\">
+               keystoreFile=\"${miso_path}/ssl/jsp.jks\" keystorePass=\"${KEYPASS}\">
     </Connector>
 ########################################################################
 vi ${tomcat_path}/conf/server.xml
@@ -1122,10 +1136,10 @@ main()
 		dbset)
 			source_sql
 			;;
-		editor)
+		namo)
 			editor
 			;;
-		crossviewer)
+		viewer)
 			crossviewer
 			;;
 		ssl)
