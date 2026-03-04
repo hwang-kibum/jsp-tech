@@ -38,9 +38,10 @@
 - add function crossviewer, ssl, help, decode
 - crossviewer(f) need (crossViewer dir) or (CrossViewer*.zip)
 - ssl(f) make jsp.jks need password , after show Nioprotocol example
-- help(f) show after funtion option auto
+- help(f) show after function option auto
 - decode(f) input incoding passwd > decode passwd (not logging)
 - log in dbpassword masking
 
-
+2026/03/04 miso_portal.sh
+- mariadb.serivce modify user,group ${MY_USER}
 
