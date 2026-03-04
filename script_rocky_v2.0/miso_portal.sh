@@ -58,7 +58,6 @@ then
 fi
 checkp=1
 }
-
 check_path()
 {
 echo "###########config path###########"
@@ -106,7 +105,6 @@ fi
 echo "###########config path###########"
 checking
 }
-
 checking()
 {
 echo "================================="
@@ -173,7 +171,6 @@ else
 fi
 checkuserdb=1
 }
-
 decoding()
 {
 exec 3>&1      
@@ -206,8 +203,7 @@ echo "================================="
 echo "================================="
 echo "mkdir path done"
 }
-
-install_java()
+java_install()
 {
 echo "#####java install"
 if [ -d "${install_path}/java" ]; then
@@ -228,13 +224,15 @@ if [ ! -d "${install_path}/java" ]; then
 fi
 sudo tar -xzvf ../jdk/"${JAVAFILE}"* -C ${install_path}/java --strip-components=1 >/dev/null 2>&1
 sudo chown -R ${SERV_USER}:${SERV_USER} ${install_path}/java
+if ! grep -q 'export JAVA_HOME=\"'${install_path}'/jbva' /etc/profile; then
 sudo sh -c 'echo "export JAVA_HOME=\"'${install_path}'/java\"" >> /etc/profile '
 sudo sh -c 'echo "export PATH=\"\$JAVA_HOME/bin:\$PATH\"" >> /etc/profile'
 sudo sh -c 'echo "export CLASSPATH=\"\$JAVA_HOME/jre:/lib/ext:\$JAVA_HOME/lib/tools.jar\"" >>/etc/profile'
+fi
+
 echo "#####java install done"
 echo "##### source /etc/profile #####"
 }
-
 tomcat_install()
 {
 #### 수동 설치시 파일 체크
@@ -259,7 +257,7 @@ else
 		echo "please install java"
 		exit 0
 	else
-		install_java
+		java_install
 	fi
 fi
 #### ckeck path
@@ -309,7 +307,6 @@ fi
 echo "#####tomcat install done"
 tomcat_set
 }
-
 tomcat_set()
 {
 echo "#####tomcat setting"
@@ -380,7 +377,6 @@ fi
 echo "#####tomcat setting done"
 tomcat_service
 }
-
 tomcat_service()
 {
 echo "#####make tomcat service"
@@ -443,7 +439,6 @@ if [[ $1 == "tomcat" ]]; then
 	fi
 fi
 }
-
 db_install()
 {
 #### 수동 설치시 파일 체크
@@ -544,7 +539,6 @@ sudo ${db_path}/scripts/mysql_install_db --user=${MY_USER} --basedir=${db_path} 
 echo "#####DB install done"
 db_set
 }
-
 db_set()
 {
 echo "#####DB setting"
@@ -591,6 +585,9 @@ sudo sed -i 's|/usr/local/mysql/data|'${dbdata_path}'|' ${db_path}/conf-set/mari
 sudo sed -i 's|/usr/local/mysql|'${db_path}'|g' ${db_path}/conf-set/mariadb.service
 # 구문 추가
 sudo sed -i'' -r -e "/Type=notify/a\NotifyAccess=all" ${db_path}/conf-set/mariadb.service
+#user,group 변환
+sudo sed -i 's|^User=.*|User='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
+sudo sed -i 's|^Group=.*|Group='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
 #### mariadb.service 복사 및 수정 done
 sudo chown -R root:root ${db_path}/conf-set/mariadb.service
 FIN="/usr/lib/systemd/system/mariadb.service"
@@ -692,7 +689,6 @@ if [[ $1 == "mariadb" ]]; then
 	fi
 fi
 }
-
 miso_install()
 {
 ## 수동시 디렉토리 체크
@@ -836,7 +832,6 @@ source_db_variable
 ;;
 esac
 }
-
 source_db_variable()
 {
 salt=$(printf $SERV_USER | md5sum | cut -c1-16)
@@ -851,7 +846,6 @@ sudo sed -i "/DB_NAME=/ c\DB_NAME="${DB_NAME} 01.util_Install_latest
 sudo sed -i "/DP_ENC=/ c\DP_ENC="${ENC_VALUE} 01.util_Install_latest
 echo "source path variable  done"
 }
-
 editor()
 {
 #파일체크 
@@ -937,7 +931,6 @@ sudo sed -i'' -r -e '/unpackWARs=/a\<Context path="/editorImage" docBase="'${mis
 cd -
 echo "namo setting done"
 }
-
 crossviewer()
 {
 cd ../miso_pack/
@@ -981,7 +974,7 @@ else
 		echo "please install java"
 		exit 0
 	else
-		install_java
+		java_install
 	fi
 fi
 
@@ -1001,7 +994,6 @@ vi ${tomcat_path}/conf/server.xml
 
 "
 }
-
 DB_RUN()
 {
 echo "#### DB RUN"
@@ -1016,7 +1008,6 @@ tomcat_RUN()
 echo "#### tomcat RUN"
 sudo systemctl start tomcat.service || true
 }
-
 firewalld_setting()
 {
 echo "####firewalld setting"
@@ -1056,7 +1047,6 @@ sudo firewall-cmd --reload
 
 echo "####firewalld setting done"
 }
-
 source_sql()
 {
 	echo "db setting"
@@ -1094,7 +1084,8 @@ EOF
 sudo ldconfig | grep java
 echo "setcap done"
 }
-usage() {
+usage() 
+{
 echo "================================================"
 echo " Usage: $0 [option]"
 echo "================================================"
