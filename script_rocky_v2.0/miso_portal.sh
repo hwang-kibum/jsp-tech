@@ -224,14 +224,13 @@ if [ ! -d "${install_path}/java" ]; then
 fi
 sudo tar -xzvf ../jdk/"${JAVAFILE}"* -C ${install_path}/java --strip-components=1 >/dev/null 2>&1
 sudo chown -R ${SERV_USER}:${SERV_USER} ${install_path}/java
-if ! grep -q 'export JAVA_HOME=\"'${install_path}'/jbva' /etc/profile; then
-sudo sh -c 'echo "export JAVA_HOME=\"'${install_path}'/java\"" >> /etc/profile '
-sudo sh -c 'echo "export PATH=\"\$JAVA_HOME/bin:\$PATH\"" >> /etc/profile'
-sudo sh -c 'echo "export CLASSPATH=\"\$JAVA_HOME/jre:/lib/ext:\$JAVA_HOME/lib/tools.jar\"" >>/etc/profile'
-fi
-
+#if ! grep -q "^export JAVA_HOME=" /etc/profile; then
+#	sudo sh -c 'echo "export JAVA_HOME=\"'${install_path}'/java\"" >> /etc/profile '
+#	sudo sh -c 'echo "export PATH=\"\$JAVA_HOME/bin:\$PATH\"" >> /etc/profile'
+#	sudo sh -c 'echo "export CLASSPATH=\"\$JAVA_HOME/jre:/lib/ext:\$JAVA_HOME/lib/tools.jar\"" >>/etc/profile'
+#fi
 echo "#####java install done"
-echo "##### source /etc/profile #####"
+#echo "##### source /etc/profile #####"
 }
 tomcat_install()
 {
@@ -532,7 +531,17 @@ if [ -e "/etc/my.cnf" ] ||  [ -L "/etc/my.cnf" ]; then
 		echo "mv file done"
 	fi
 fi
-
+#### libcrypt 버전 확인
+result1=$(find /usr -name libcrypt.so.1 2>/dev/null -print -quit)
+version=$(cat /etc/*release* | grep VERSION_ID | cut -d "=" -f2 | tr -d '"')
+if [[ -z "$result1" && $version == 10.* ]]; then
+	rpm -ivh ../mariadb/libxcrypt-compat-4.4.36-10.el10.x86_64.rpm
+elif [ -n "$result1" ]; then
+	echo "check $result1"
+else
+	echo "check libcrypt.so.1"
+	exit 0
+fi
 sudo tar -xzf ../mariadb/"${DBFILE}"* -C ${db_path} --strip-components=1 >/dev/null 2>&1
 sudo mkdir -p ${db_path}/conf-set
 sudo ${db_path}/scripts/mysql_install_db --user=${MY_USER} --basedir=${db_path} --datadir=${dbdata_path}
