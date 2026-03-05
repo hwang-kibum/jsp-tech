@@ -45,3 +45,9 @@
 2026/03/04 miso_portal.sh
 - mariadb.serivce modify user,group ${MY_USER}
 
+2026/03/05 miso_portal.sh, miso_vulnerability.sh  (rocky 10.*)
+- db portable install need libcrypt.so.1 , mariadb(d) need libxcrypt-compat-4.4.36-10.el10.x86_64.rpm
+- /etc/profile #java_home
+- vulnerablility.sh add rocky 10.1 test done
+
+
