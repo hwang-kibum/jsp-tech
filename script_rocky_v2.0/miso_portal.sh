@@ -370,7 +370,7 @@ chekp=$(which logrotate 2>/dev/null)
 if [ -z $chekp ]; then
         echo "check logrotate file"
 else
-	sudo ln -s ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
+	sudo cp -r ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
 	sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.logrotate
 fi
 echo "#####tomcat setting done"
@@ -420,7 +420,10 @@ sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.service
 echo "#####create tomcat.service done"
 
 echo "#####sybolic link tomcat service"
-sudo ln -s ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
+sudo cp -r ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
+
+#total owner change
+sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
 
 #ls -alt /usr/lib/systemd/system | grep tomcat.service
 sudo systemctl daemon-reload
@@ -776,8 +779,9 @@ sudo cp ${miso_path}/webapps/WEB-INF/classes/logback.xml ${miso_path}/webapps/WE
 sudo sed -i 's#<maxHistory>30</maxHistory>#<maxHistory>180</maxHistory>#g' ${miso_path}/webapps/WEB-INF/classes/logback.xml
 
 echo "####setting miso log done"
-# 소유권 수정
+# 소유권 및 권한 수정
 sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
+sudo chmod -R 750 ${miso_path}/webapps
 
 #server.xml 내용 추가(디렉토리 내용)
 echo "####setting miso server.xml"
@@ -870,7 +874,7 @@ else
 fi
 
 chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
-chmod -R 700 ../miso_pack/namo
+chmod -R 600 ../miso_pack/namo
 
 #war 안 namo plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
@@ -1006,16 +1010,17 @@ mv jsp.jks ${miso_path}/ssl
 chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/ssl
 
 echo "
-    <Connector port=\"8443\" protocol=\"org.apache.coyote.http11.Http11NioProtocol\"
-               maxThreads=\"150\" SSLEnabled=\"true\"
-               scheme=\"https\" secure=\"true\"
-               clientAuth=\"false\" sslProtocol=\"TLS\"
-               keystoreFile=\"${miso_path}/ssl/jsp.jks\" keystorePass=\"${KEYPASS}\">
+	<Connector port=\"8443\" protocol=\"org.apache.coyote.http11.Http11NioProtocol\"
+               maxThreads=\"150\" SSLEnabled=\"true\" maxParameterCount=\"1000\"
+               URIEncoding=\"UTF-8\" enableLookups=\"false\" server=\"server\" scheme=\"https\" secure=\"true\">
+        <SSLHostConfig protocols=\"TLSv1.2+TLSv1.3\">
+                <Certificate certificateKeystoreFile=\"${miso_path}/ssl/jsp.jks\" certificateKeystorePassword=\"${KEYPASS}\" type=\"RSA\" />
+        </SSLHostConfig>
     </Connector>
 ########################################################################
-vi ${tomcat_path}/conf/server.xml
-
 "
+read -p "Press Enter > Open server.xml file"
+vi ${tomcat_path}/conf/server.xml
 }
 DB_RUN()
 {
