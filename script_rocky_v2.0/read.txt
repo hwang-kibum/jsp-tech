@@ -50,4 +50,6 @@
 - /etc/profile #java_home
 - vulnerablility.sh add rocky 10.1 test done
 
+2026/03/16 miso_portal.sh, miso_vulnerability.sh 
+- solidstep vulnerability setting > rocky, tomcat, mariadb, apache(after)
 
