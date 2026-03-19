@@ -874,7 +874,7 @@ else
 fi
 
 chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
-chmod -R 600 ../miso_pack/namo
+chmod -R 700 ../miso_pack/namo
 
 #war 안 namo plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
@@ -895,9 +895,12 @@ sudo find ${miso_path}/webapps/web/plugins/namo/websource/jsp -type f -name "*.j
 #ImagePath.jsp 주석 제거 및 파일 수정
 sudo sed -i 's/\/\*//g' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's/\*\///g' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i -E 's|^//imagePhysicalPath =|imagePhysicalPath =|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i -E 's|^//imageUPath =|imageUPath =|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoFilePhysicalPath.*|String namoFilePhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoFlashPhysicalPath.*|String namoFlashPhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoImagePhysicalPath.*|String namoImagePhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i -E 's|^imagePhysicalPath = ".*|imagePhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
 cnt=0
 while [ "$cnt" == "0" ]; do 
@@ -917,7 +920,8 @@ done
 sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoFlashUPath =.*|String namoFlashUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoImageUPath =.*|String namoImageUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
-sudo sed -i 's|useExternalServer =.*|useExternalServer = "'${URL}'/editorImage/namo/" + "websource/jsp/ImageUploadExecute.jsp";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i -E 's|^imageUPath = ".*|imageUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+#sudo sed -i 's|useExternalServer =.*|useExternalServer = "'${URL}'/editorImage/namo/" + "websource/jsp/ImageUploadExecute.jsp";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
 #Config.xml 파일 수정
 sudo cp -r ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml.ori
