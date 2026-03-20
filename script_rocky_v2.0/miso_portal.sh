@@ -346,6 +346,61 @@ sudo sed -ri 's#(.*suffix=".log")#\1 fileDateFormat=".yyyy-MM-dd"  rotatable="tr
 sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
 sudo chown -R ${SERV_USER}:${SERV_USER} ${tlog_path}
 
+## LB file set
+sudo tee ${tomcat_path}/conf-set/lb.txt > /dev/null << EOF
+###########################Engine tag under line setting  <Engine name="Catalina" defaultHost="localhost">
+<!-- jvmRoute change -->
+<Engine name="Catalina" defaultHost="localhost" jvmRoute="tomcatA">   
+<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster">
+<Manager className="org.apache.catalina.ha.session.DeltaManager"
+expireSessionsOnShutdown="false"
+notifyListenersOnReplication="true"
+notifySessionListenersOnReplication="true"
+notifyContainerListenersOnReplication="true"/>
+
+<Channel className="org.apache.catalina.tribes.group.GroupChannel">
+<Valve className="org.apache.catalina.ha.tcp.ReplicationValve" filter=".*\.gif|.*\.js|.*\.jpeg|.*\.jpg|.*\.png|.*\.htm|.*\.html|.*\.css|.*\.txt" />
+
+<!--local IP change -->
+<Receiver className="org.apache.catalina.tribes.transport.nio.NioReceiver"
+address="1.1.1.1"   
+port="4000"
+selectorTimeout="5000"
+maxThreads="6"/>
+
+<Sender className="org.apache.catalina.tribes.transport.ReplicationTransmitter">
+<Transport className="org.apache.catalina.tribes.transport.nio.PooledParallelSender"/>
+</Sender>
+
+<Membership className="org.apache.catalina.tribes.membership.StaticMembershipService">
+
+<!-- 로컬(A) -->
+<!--uniqueId change -->
+<LocalMember className="org.apache.catalina.tribes.membership.StaticMember"
+uniqueId="{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,1}"/>   
+
+<!-- 원격(B) -->
+<!--remote IP, uniqueId change -->
+<Member className="org.apache.catalina.tribes.membership.StaticMember"
+host="1.1.1.2"
+port="4000"
+uniqueId="{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,2}"/>
+</Membership>
+
+<Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpPingInterceptor"/>
+<Interceptor className="org.apache.catalina.tribes.group.interceptors.TcpFailureDetector"/>
+<Interceptor className="org.apache.catalina.tribes.group.interceptors.MessageDispatchInterceptor"/>
+</Channel>
+<Valve className="org.apache.catalina.ha.tcp.ReplicationValve" filter="" />
+<Valve className="org.apache.catalina.ha.session.JvmRouteBinderValve"/>
+<ClusterListener className="org.apache.catalina.ha.session.ClusterSessionListener"/>
+</Cluster>
+
+##########################################################
+check web.xml <distributable/>
+##########################################################
+EOF
+
 ##logrotate 설정 root 권한 필요
 sudo tee ${tomcat_path}/conf-set/tomcat.logrotate > /dev/null << EOF
 ${tlog_path}/*.out
@@ -1089,11 +1144,12 @@ source_sql()
 	
 	db_setting_check
 	echo "schema & user set"
+	mysql -u root -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
 	mysql -u root -Bse "CREATE DATABASE \`${DB_NAME}\` /*!40100 COLLATE 'utf8mb4_unicode_ci'*/;"
-	mysql -u root -Bse "CREATE USER '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
-	mysql -u root -Bse "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
-	mysql -u root -Bse "GRANT all PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
-	mysql -u root -Bse "GRANT all PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
+	mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
+	mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
+	mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${WAS_IP}';"
+	mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
 	mysql -u root -Bse "FLUSH PRIVILEGES"
 	
 	mysql -u root ${DB_NAME} < ../miso_pack/${init_sql}
@@ -1127,6 +1183,7 @@ grep -E '^\s+[a-zA-Z]{2,}\)' | \
 grep -v '#' | \
 awk -F')' '{gsub(/\t| /,"",$1); printf "  %-15s\n", $1}'
 echo "================================================"
+
 }
 main()
 {
@@ -1173,7 +1230,7 @@ main()
 			usage
 			;;
 		*)
-			echo "Usage: $0 {check|install}"
+			echo "Usage: $0 {check|install|help}"
 			exit 0
 			;;
 	esac
