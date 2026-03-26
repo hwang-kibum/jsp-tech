@@ -8,8 +8,7 @@ declare -A server_info=(
 )
 
 send_user="
-lsm97@jiran.com
-kbhwang@jiran.com
+jspcs@jiran.com
 "
 check_disk="
 /
