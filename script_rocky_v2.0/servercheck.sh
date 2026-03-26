@@ -29,12 +29,12 @@ for host in "${!server_info[@]}"; do
     echo "[$host]" >> tmp.txt
     echo "============================" >> tmp.txt
 
-    sshpass -p "$pass" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$user@$host" 'exit' 2>/dev/null
+    sshpass -p "$pass" ssh -o StrictHostKeyChecking=no -o LogLevel=QUIET -o ConnectTimeout=5 "$user@$host" 'exit' 2>/dev/null
     if [ $? != 0 ]; then
         echo "connect fail [$host]" >> tmp.txt
         continue
     fi
-    result=$(sshpass -p "$pass" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$user@$host" \
+    result=$(sshpass -p "$pass" ssh -o StrictHostKeyChecking=no -o LogLevel=QUIET -o ConnectTimeout=5 "$user@$host" \
         "
         echo '=== CPU ==='
         top -bn1 | grep 'Cpu(s)' | awk '{print $2}'
