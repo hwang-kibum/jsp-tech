@@ -800,6 +800,7 @@ sudo sed -i'' -r -e "/#miso.db.url=jdbc:mysql/a\miso.db.url=jdbc:mysql://"${DB_I
 sudo sed -i -E 's/(miso.db.user=).*/\1'${DB_USER}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i -E 's/(miso.db.password=).*/\1'${DB_PASSWD}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i -E 's|(fileUpload.dir=).*|\1'${miso_path}/fileUpload'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+sudo sed -i -E 's|(credentials.properties.file.path=).*|\1'${miso_path}/webapps/WEB-INF/classes/properties/credentials.properties'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "####setting system.properties done"
 
 #### miso Log 설정
@@ -1156,7 +1157,7 @@ source_sql()
 	if [ -n "${alter_sql}" ] && [ -e "../miso_pack/${alter_sql}" ]; then
 		mysql -u root ${DB_NAME} --force < ../miso_pack/${alter_sql}
 	fi
-	
+	#unzip -j miso.core.web-2.0.zip "WEB-INF/classes/database/mysql/*" -d sql
 	echo "db setting done"
 }
 setcap()
@@ -1197,9 +1198,11 @@ main()
 			DB_RUN&&source_sql&&firewalld_setting&&tomcat_RUN
 			;;
 		tomcat)
+			check_file&&check_sel&&
 			tomcat_install 
 			;;
 		db)
+			check_file&&check_sel&&
 			db_install 
 			;;
 		firewalld)
