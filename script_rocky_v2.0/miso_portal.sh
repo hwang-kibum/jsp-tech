@@ -1098,42 +1098,131 @@ sudo systemctl start tomcat.service || true
 }
 firewalld_setting()
 {
-echo "####firewalld setting"
-HTTP=8080
-read -p "web port is "${HTTP}" :  y(enter key) or no(port insert) >" RET
-	if [ ! -z "${RET}" ]; then
-		HTTP="${RET}"
-	fi
-read -p "firewall setting web port "${HTTP}" down : y(enter key) or no(n key) > " RET
-case $RET in
-n)
-;;
-y)
-sudo firewall-cmd --permanent --zone=public --add-port=${HTTP}/tcp
-;;
-*)
-sudo firewall-cmd --permanent --zone=public --add-port=${HTTP}/tcp
-;;
-esac
+echo "firewall setting rule"
+ZONE="public"
 
-read -p "DB port is "${DB_PORT}" :  y(enter key) or no(port insert) >" RET
-	if [ ! -z "${RET}" ]; then
-		DB_PORT="${RET}"
-	fi
-read -p "firewall setting web port "${DB_PORT}" down : y(enter key) or no(n key) > " RET
-case $RET in
-n)
-;;
-y)
-sudo firewall-cmd --permanent --zone=public --add-port=${DB_PORT}/tcp
-;;
-*)
-sudo firewall-cmd --permanent --zone=public --add-port=${DB_PORT}/tcp
-;;
-esac
-sudo firewall-cmd --reload
+# 전역 배열
+declare -A TYPE_MAP
+declare -A VALUE_MAP
 
-echo "####firewalld setting done"
+firewalld_list()
+{
+echo "===== FIREWALL RULE LIST ====="
+TYPE_MAP=()
+VALUE_MAP=()
+mapfile -t PORTS < <(firewall-cmd --zone=$ZONE --list-ports | tr ' ' '\n')
+mapfile -t RICH_RULES < <(firewall-cmd --zone=$ZONE --list-rich-rules)
+INDEX=1
+
+# ports
+for p in "${PORTS[@]}"; do
+    [ -z "$p" ] && continue
+    echo "$INDEX) port  $p"
+    TYPE_MAP[$INDEX]="port"
+    VALUE_MAP[$INDEX]="$p"
+    ((INDEX++))
+done
+
+# rich rules
+for r in "${RICH_RULES[@]}"; do
+    echo "$INDEX) rich  $r"
+    TYPE_MAP[$INDEX]="rich"
+    VALUE_MAP[$INDEX]="$r"
+    ((INDEX++))
+done
+}
+
+firewalld_add()
+{
+echo "input type example"
+echo "1) port, protocol(tcp:omitted): 3306,tcp"
+echo "2) source_ip, port, protocol(tcp:omitted): 10.10.10.5,3306,tcp"
+echo
+
+read -p "data : " INPUT
+
+IFS=',' read -r data1 data2 data3 <<< "$INPUT"
+
+PROTO="tcp"
+
+if [ -n "$data3" ]; then
+    PROTO="$data3"
+elif [ -n "$data2" ] && [[ "$data2" =~ ^(tcp|udp)$ ]]; then
+    PROTO="$data2"
+fi
+
+if [[ "$data1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    IP="$data1"
+    PORT="$data2"
+    echo "rich rule add"
+    firewall-cmd --permanent --zone=$ZONE \
+    --add-rich-rule="rule family=\"ipv4\" source address=\"$IP\" port port=\"$PORT\" protocol=\"$PROTO\" accept"
+else
+    PORT="$data1"
+    echo "port add"
+    firewall-cmd --permanent --zone=$ZONE --add-port=${PORT}/${PROTO}
+fi
+
+firewall-cmd --reload
+}
+
+firewalld_remove()
+{
+    firewalld_list
+    echo
+    read -p "remove number : " NUM
+
+    if ! [[ "$NUM" =~ ^[0-9]+$ ]]; then
+        echo "invalid input"
+        return
+    fi
+
+    TYPE=${TYPE_MAP[$NUM]}
+    VALUE=${VALUE_MAP[$NUM]}
+
+    if [ -z "$TYPE" ]; then
+        echo "invalid number"
+        return
+    fi
+
+    if [ "$TYPE" == "port" ]; then
+        echo "remove port : $VALUE"
+        firewall-cmd --permanent --zone=$ZONE --remove-port=$VALUE
+    else
+        echo "remove rich rule"
+        firewall-cmd --permanent --zone=$ZONE --remove-rich-rule="$VALUE"
+    fi
+
+    firewall-cmd --reload
+    echo "done"
+}
+
+while true; do
+    read -p "[[ add (1), remove (2) list (3) exit (0) ]] > " num
+    case $num in
+        1)
+            echo "=========================================="
+            firewalld_add
+            echo "=========================================="
+            ;;
+        2)
+            echo "=========================================="
+            firewalld_remove
+            echo "=========================================="
+            ;;
+        3)
+            echo "=========================================="
+            firewalld_list
+            echo "=========================================="
+            ;;
+        0)
+            break
+            ;;
+        *)
+            echo "invalid menu"
+            ;;
+    esac
+done
 }
 source_sql()
 {
