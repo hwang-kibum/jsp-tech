@@ -53,3 +53,6 @@
 2026/03/16 miso_portal.sh, miso_vulnerability.sh 
 - solidstep vulnerability setting > rocky, tomcat, mariadb, apache(after)
 
+2026/04/01 miso_portal.sh
+firewalld (add auto) ports or rich rule auto setting
+firewalld (remove number) setting
