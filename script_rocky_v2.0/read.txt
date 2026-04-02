@@ -57,6 +57,9 @@
 firewalld (add auto) ports or rich rule auto setting
 firewalld (remove number) setting
 
-2026/04/02 miso_vulnerability.sh
+2026/04/02 miso_vulnerability.sh (rocky, db)
 - faillock rocky 8,9,10 setting : profile copy > select new profile > new policy 
 - add cockpit service and firewalld down
+- db simple password shell check (upper, lower, min, digit, special)
+- change root@localhost password option select
+- test schema IF EXISTS checck
