@@ -57,14 +57,13 @@ sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/MYSQL_DDL_6_ALTER.sq
 sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql
 sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql
 
-#개행처리
-#sed -i 's/\r//g' 1.sql
-# 공백 2개이상 1개로 변환
-#sed -i 's/[[:space:]]\+/ /g' 1.sql
-#줄마지막 공백제거
-#sed -i 's/[[:space:]]*$//' 1.sql
-#빈줄 삭제
-#sed -i '/^$/d' 1.sql
+sed -i '
+s/\r//g                   # 개행처리
+s/[[:space:]]\+/ /g       # 2개이상 공백 1개 치환
+s/[[:space:]]*$//         # 마지막줄 공백제거
+/^[[:space:]]*$/d         # 공백 줄 제거
+' 1.sql
+
 
 oldline=$(sed -n '/./=' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql | tail -n 1)
 newline=$(sed -n '/./=' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql | tail -n 1)
