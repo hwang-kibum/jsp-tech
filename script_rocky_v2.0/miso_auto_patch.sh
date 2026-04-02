@@ -56,6 +56,16 @@ sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/
 sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/MYSQL_DDL_6_ALTER.sql ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql
 sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql
 sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql
+
+#개행처리
+#sed -i 's/\r//g' 1.sql
+# 공백 2개이상 1개로 변환
+#sed -i 's/[[:space:]]\+/ /g' 1.sql
+#줄마지막 공백제거
+#sed -i 's/[[:space:]]*$//' 1.sql
+#빈줄 삭제
+#sed -i '/^$/d' 1.sql
+
 oldline=$(sed -n '/./=' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql | tail -n 1)
 newline=$(sed -n '/./=' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql | tail -n 1)
 
