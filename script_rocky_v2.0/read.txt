@@ -63,3 +63,8 @@ firewalld (remove number) setting
 - db simple password shell check (upper, lower, min, digit, special)
 - change root@localhost password option select
 - test schema IF EXISTS checck
+
+2026/04/08 miso_portal.sh
+check dir or file to backup function : dircheck
+
+
