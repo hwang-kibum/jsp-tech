@@ -58,6 +58,14 @@ then
 fi
 checkp=1
 }
+dircheck()
+{
+    SRC="$1"
+    [ -e "$SRC" ] || [ -L "$SRC" ] || return 0
+    BACKUP="${SRC}_bak_$(date +%Y%m%d_%H%M)"
+    sudo mv "$SRC" "$BACKUP" || return 1
+}
+
 check_path()
 {
 echo "###########config path###########"
@@ -97,7 +105,6 @@ read -p "DB DATA path (Recommand(enter key): "${dbdata_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	dbdata_path="${RET}"
 fi
-
 read -p "DB log path (Recommand(enter key): "${dlog_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	dlog_path="${RET}"
@@ -120,17 +127,11 @@ echo " next (press y or anykey)"
 echo " modify (press n) "
 echo "================================="
 read RET
-case $RET in
-n)
-check_path
-;;
-y)
-source_variable
-;;
-*)
-source_variable
-;;
-esac
+if [[ "$RET" == "y" || -z "$RET" ]]; then
+	source_variable
+else
+	check_path
+fi
 }
 source_variable()
 {
@@ -167,7 +168,7 @@ if [ -z "${tmp}" ]; then
 	sudo useradd -Ms /bin/false ${MY_USER}
 	echo "create "${MY_USER}" done"
 else
-        echo ${MY_USER}" already exist"
+	echo ${MY_USER}" already exist"
 fi
 checkuserdb=1
 }
@@ -194,7 +195,6 @@ echo "mkdir miso path"
 	sudo mkdir -p ${miso_path}/miso_daemon
 	sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}
 	echo "mkdir miso path done"
-
 echo "================================="
 	sudo mkdir -p ${mlogs_path}/miso
 	sudo mkdir -p ${mlogs_path}/miso_daemon
@@ -206,22 +206,8 @@ echo "mkdir path done"
 java_install()
 {
 echo "#####java install"
-if [ -d "${install_path}/java" ]; then
-	echo "java already install"
-	read -p ${install_path}"/java mv "${install_path}"/java.ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "using java or mv java"
-		return 0
-	else
-		echo "mv file"
-		sudo mv -f ${install_path}/java ${install_path}/java.ori
-		echo "mv file done"
-		sudo mkdir -p ${install_path}/java		
-	fi
-fi
-if [ ! -d "${install_path}/java" ]; then
-       	sudo mkdir -p ${install_path}/java
-fi
+dircheck ${install_path}/java
+sudo mkdir -p ${install_path}/java
 sudo tar -xzvf ../jdk/"${JAVAFILE}"* -C ${install_path}/java --strip-components=1 >/dev/null 2>&1
 sudo chown -R ${SERV_USER}:${SERV_USER} ${install_path}/java
 #if ! grep -q "^export JAVA_HOME=" /etc/profile; then
@@ -234,7 +220,6 @@ echo "#####java install done"
 }
 tomcat_install()
 {
-#### 수동 설치시 파일 체크
 if [ ! -e "../jdk/${JAVAFILE}" ]; then
 	echo ${JAVAFILE}" not exist"
 	exit 0
@@ -242,7 +227,6 @@ elif [ ! -e "../tomcat/${TOMCATFILE}" ]; then
 	echo ${TOMCATFILE}" not exist"
 	exit 0
 fi
-#### 사용자 체크
 if [ "${checkuserserv}" == "0" ]; then
 check_user_serv
 fi
@@ -251,58 +235,20 @@ echo "checking java install"
 if [ -d "${install_path}/java" ]; then
 	echo ${install_path}"/java installed"
 else
-	read -p "install java : yes(enter key) or no(n key) >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "please install java"
-		exit 0
-	else
-		java_install
-	fi
+	java_install
 fi
-#### ckeck path
 checking
-
+dircheck /etc/logrotate.d/tomcat.logrotate
+dircheck /usr/lib/systemd/system/tomcat.service
+###################################################################
 echo "#####tomcat install"
-if [ -d "${tomcat_path}" ]; then
-	echo "tomcat already install"
-	read -p ${tomcat_path}" mv "${tomcat_path}".ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "use tomcat or mv tomcat "
-		return 0
-	else
-		echo "mv file"
-		sudo mv -f ${tomcat_path} ${tomcat_path}.ori
-		echo "mv file done"
-		sudo mkdir -p ${tomcat_path}		
-	fi
-fi
-#### tomcat dir 생성
-echo "mkdir tomcat dir"
-if [ ! -d "${tomcat_path}" ]; then
-       	sudo mkdir -p ${tomcat_path}
-fi
-sudo tar -xzf ../tomcat/"${TOMCATFILE}"* -C ${tomcat_path} --strip-components=1 >/dev/null 2>&1
+dircheck ${tomcat_path}
+sudo mkdir -p ${tomcat_path}	
+dircheck ${tlog_path}
+sudo mkdir -p ${tlog_path}	
 sudo mkdir -p ${tomcat_path}/conf-set
+sudo tar -xzf ../tomcat/"${TOMCATFILE}"* -C ${tomcat_path} --strip-components=1 >/dev/null 2>&1
 
-#### tomcat log dir 생성
-echo "mkdir tomcat log dir"
-if [ -d "${tlog_path}" ]; then
-	echo ${tlog_path} "already exist"
-	read -p ${tlog_path}" mv "${tlog_path}".ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "change tomcat log path"
-		exit 0
-	else
-		echo "mv file"
-		sudo mv -f ${tlog_path} ${tlog_path}.ori
-		echo "mv file done"
-		sudo mkdir -p ${tlog_path}
-		echo "mkdir tomcat log path done"
-	fi
-else
-	sudo mkdir -p ${tlog_path}
-	echo "mkdir tomcat log path done"
-fi
 echo "#####tomcat install done"
 tomcat_set
 }
@@ -421,11 +367,12 @@ ${tlog_path}/*.out
 		copytruncate
 }
 EOF
-chekp=$(which logrotate 2>/dev/null)
+
+chekp=$(command -v logrotate)
 if [ -z $chekp ]; then
-        echo "check logrotate file"
+        echo "check logrotate command"
 else
-	sudo cp -r ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
+	sudo cp -arp ${tomcat_path}/conf-set/tomcat.logrotate /etc/logrotate.d/tomcat.logrotate
 	sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.logrotate
 fi
 echo "#####tomcat setting done"
@@ -434,18 +381,6 @@ tomcat_service
 tomcat_service()
 {
 echo "#####make tomcat service"
-
-FIN="/usr/lib/systemd/system/tomcat.service"
-if [ -e $FIN ] || [ -L $FIN ]; then
-	read -p "tomcat.service mv tomcat.servce_bak : y(enter key) n(exit) > " RET
-	if [ "${RET}" = "n" ]; then
-		echo "please mv tomcat.service"
-		exit 0
-	else
-		sudo unlink /usr/lib/systemd/system/tomcat.service
-		sudo mv -f /usr/lib/systemd/system/tomcat.service /usr/lib/systemd/system/tomcat.service_bak 2>/dev/null
-	fi
-fi
 sudo tee ${tomcat_path}/conf-set/tomcat.service > /dev/null << EOF
 [Unit]
 Description=tomcat 9
@@ -474,8 +409,8 @@ fi
 sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.service
 echo "#####create tomcat.service done"
 
-echo "#####sybolic link tomcat service"
-sudo cp -r ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
+echo "#####copy tomcat service"
+sudo cp -arp ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
 
 #total owner change
 sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
@@ -487,7 +422,7 @@ echo "#####make tomcat service done"
 
 if [[ $1 == "tomcat" ]]; then
 	read -p "systemctl start tomcat.service : n(not running) , y(running) >" RET
-	if [ "${RET}" == "y" ]; then
+	if [[ "${RET}" == "y" || -z "${RET}" ]]; then
 		sudo systemctl start tomcat
 	elif [ "${RET}" == "n" ]; then
 		echo "after running tomcat"
@@ -498,117 +433,16 @@ fi
 }
 db_install()
 {
-#### 수동 설치시 파일 체크
 if [ ! -e "../mariadb/${DBFILE}" ]; then
 	echo ${DBFILE}" not exist"
 	exit 0
 fi
 echo "#####DB install"
 read -p "INSTALL MARIADB (install(y or anykey) | not install (n key)) >" DBINSTALLQ
-case $DBINSTALLQ in
-n)
-echo "use other server DB"
-return 0
-;;
-y)
-;;
-*)
-;;
-esac
-#### 설정값 체크
-checking
-#### 사용자 체크
-if [ "${checkuserdb}" == "0" ]; then
-check_user_db
+if [[ "$DBINSTALLQ" == "n" ]]; then
+	echo "use other server DB"
+	return 0
 fi
-
-if [ -d "${db_path}" ]; then
-	echo "DB already install"
-	read -p ${db_path}" mv "${db_path}".ori : y(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "use DB or mv DB "
-		return 0
-	else
-		echo "mv file"
-		sudo mv -f ${db_path} ${db_path}.ori
-		echo "mv file done"
-		sudo mkdir -p ${db_path}		
-	fi
-fi
-if [ ! -d "${db_path}" ]; then
-       	sudo mkdir -p ${db_path}
-fi
-echo "mkdir DB log path"
-if [ -d "${dlog_path}" ]; then
-	echo ${dlog_path} "already exist"
-	read -p ${dlog_path}" mv "${dlog_path}".ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "change DB log path"
-		exit 0
-	else
-		echo "mv file"
-		sudo mv -f ${dlog_path} ${dlog_path}.ori
-		echo "mv file done"
-		sudo mkdir -p ${dlog_path}/error
-		echo "mkdir DB log path done"
-	fi	
-else
-	sudo mkdir -p ${dlog_path}/error
-	echo "mkdir DB log path done"
-fi
-echo "mkdir DB DATA path"
-if [ -d "${dbdata_path}" ]; then
-	echo ${dbdata_path} "already exist"
-	read -p ${dbdata_path}" mv "${dbdata_path}".ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "change DB DATA path"
-		exit 0
-	else
-		echo "mv file"
-		sudo mv -f ${dbdata_path} ${dbdata_path}.ori
-		echo "mv file done"
-		sudo mkdir -p ${dbdata_path}		
-	fi
-	
-else
-	sudo mkdir -p ${dbdata_path}
-	echo "mkdir DB DATA path done"
-fi
-
-#### /etc/my.cnf 확인
-if [ -e "/etc/my.cnf" ] ||  [ -L "/etc/my.cnf" ]; then
-	echo "/etc/my.cnf already exist"
-	read -p "/etc/my.cnf mv /etc/my.cnf.ori : yes(enter key) or no(n key) : >" RET
-	if [ "${RET}" == "n" ]; then
-		echo "change my.cnf path "
-		return 0
-	else
-		echo "mv file"
-		sudo unlink /etc/my.cnf
-		sudo mv -f /etc/my.cnf /etc/my.cnf.ori 2>/dev/null
-		echo "mv file done"
-	fi
-fi
-#### libcrypt 버전 확인
-result1=$(find /usr -name libcrypt.so.1 2>/dev/null -print -quit)
-version=$(cat /etc/*release* | grep VERSION_ID | cut -d "=" -f2 | tr -d '"')
-if [[ -z "$result1" && $version == 10.* ]]; then
-	rpm -ivh ../mariadb/libxcrypt-compat-4.4.36-10.el10.x86_64.rpm
-elif [ -n "$result1" ]; then
-	echo "check $result1"
-else
-	echo "check libcrypt.so.1"
-	exit 0
-fi
-sudo tar -xzf ../mariadb/"${DBFILE}"* -C ${db_path} --strip-components=1 >/dev/null 2>&1
-sudo mkdir -p ${db_path}/conf-set
-sudo ${db_path}/scripts/mysql_install_db --user=${MY_USER} --basedir=${db_path} --datadir=${dbdata_path}
-echo "#####DB install done"
-db_set
-}
-db_set()
-{
-echo "#####DB setting"
 #### Symbolic link
 result1=$(find /usr -name libncurses.so.5 2>/dev/null -print -quit)
 result2=$(find /usr -name 'libncursesw.so.6*' 2>/dev/null -print -quit)
@@ -623,6 +457,7 @@ if [ -z "$result1" ]; then
 		echo "$result1"
 	else
 		echo "libncursesw.so.6 check plz1"
+		exit 0
 	fi
 fi
 
@@ -635,44 +470,61 @@ if [ -z "$result3" ]; then
 		echo "$result1"
 	else
 		echo "libncursesw.so.6 check plz2"
+		exit 0
 	fi
 fi
+#### libcrypt 버전 확인
+result1=$(find /usr -name libcrypt.so.1 2>/dev/null -print -quit)
+version=$(cat /etc/*release* | grep VERSION_ID | cut -d "=" -f2 | tr -d '"')
+if [[ -z "$result1" && $version == 10.* ]]; then
+	rpm -ivh ../mariadb/libxcrypt-compat-4.4.36-10.el10.x86_64.rpm
+elif [ -n "$result1" ]; then
+	echo "check $result1"
+else
+	echo "check libcrypt.so.1"
+	exit 0
+fi
 
+checking
+if [ "${checkuserdb}" == "0" ]; then
+check_user_db
+fi
+dircheck ${db_path}
+dircheck ${dlog_path}
+dircheck ${dbdata_path}
+dircheck /usr/lib/systemd/system/mariadb.service 
+dircheck /etc/my.cnf
+######################################################################################
+sudo mkdir -p ${db_path}
+sudo mkdir -p ${dbdata_path}
+sudo mkdir -p ${dlog_path}/error
+sudo tar -xzf ../mariadb/"${DBFILE}"* -C ${db_path} --strip-components=1 >/dev/null 2>&1
+sudo mkdir -p ${db_path}/conf-set
+sudo ${db_path}/scripts/mysql_install_db --user=${MY_USER} --basedir=${db_path} --datadir=${dbdata_path}
+echo "#####DB install done"
+db_set
+}
+db_set()
+{
+echo "#####DB setting"
 #### mariadb.service 복사 및 수정
 sudo cp -arp ${db_path}/support-files/systemd/mariadb.service ${db_path}/conf-set/mariadb.service
-# 주석제거 
 sudo sed -i '/^#/d' ${db_path}/conf-set/mariadb.service 
-# 공백제거
 sudo sed -i '/^\s*$/d' ${db_path}/conf-set/mariadb.service 
-# ProtectHome=true-> false
 sudo sed -i 's/ProtectHome=true/ProtectHome=false/' ${db_path}/conf-set/mariadb.service
-# 경로 변경
 sudo sed -i 's|/usr/local/mysql/bin/mariadbd|'${db_path}'/bin/mariadbd-safe|' ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|/usr/local/mysql/data|'${dbdata_path}'|' ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|/usr/local/mysql|'${db_path}'|g' ${db_path}/conf-set/mariadb.service
-# 구문 추가
 sudo sed -i'' -r -e "/Type=notify/a\NotifyAccess=all" ${db_path}/conf-set/mariadb.service
-#user,group 변환
 sudo sed -i 's|^User=.*|User='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|^Group=.*|Group='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
-#### mariadb.service 복사 및 수정 done
 sudo chown -R root:root ${db_path}/conf-set/mariadb.service
-FIN="/usr/lib/systemd/system/mariadb.service"
-if [ -e $FIN ] || [ -L $FIN ] ; then
-	read -p "mariadb.service mv mariadb.servce_bak : y(enter key) n(exit) > " RET
-	if [ "${RET}" = "n" ]; then
-		echo "please mv mariadb.service"
-		exit 0
-	else
-		sudo unlink /usr/lib/systemd/system/mariadb.service 
-		sudo mv -f /usr/lib/systemd/system/mariadb.service /usr/lib/systemd/system/mariadb.service_bak 2>/dev/null
-	fi
-fi
-#### galera_recovery 수정
+sudo cp -arp ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
+
+
 sudo cp -arp ${db_path}/bin/galera_recovery ${db_path}/bin/galera_recovery.ori
 sudo sed -i 's|/usr/local/mysql|'${db_path}'|' ${db_path}/bin/galera_recovery
 
-#### con-set/my.cnf 생성 
 sudo tee ${db_path}/conf-set/my.cnf > /dev/null << EOF
 # This group is read both both by the client and the server
 # use it for options that affect everything
@@ -739,8 +591,8 @@ else
 fi
 	
 #### mariadb.service 지정 및 기동
-sudo ln -s ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
-sudo systemctl daemon-reexec
+#sudo ln -s ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
+#sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable mariadb
 echo "#####DB setting done"
@@ -749,7 +601,7 @@ if [[ $1 == "mariadb" ]]; then
 	read -p "systemctl start mariadb.service : n(not running) , y(running) >" RET
 	if [ "${RET}" == "y" ]; then
 		sudo systemctl start mariadb
-	elif [ "${RET}" == "n" ]; then
+	elif [[ "${RET}" == "n" || -z "${RET}" ]]; then
 		echo "after running mariadb"
 	else
 		echo "not command y or n"
@@ -785,13 +637,12 @@ if [ ! -e "../miso_pack/${webapps}" ]; then
 	echo ${webapps}" not exist"
 	exit 0
 fi
-
+################################################################################################
 sudo tar -xzf ../miso_pack/"${webapps}"* -C ${miso_path}/webapps --strip-components=1 >/dev/null 2>&1
-
 
 #### system.properties설정값 복사
 echo "####setting system.properties"
-sudo cp ${miso_path}/webapps/WEB-INF/classes/properties/system.properties ${miso_path}/webapps/WEB-INF/classes/properties/system.properties.ori
+sudo cp -arp ${miso_path}/webapps/WEB-INF/classes/properties/system.properties ${miso_path}/webapps/WEB-INF/classes/properties/system.properties.ori
 db_setting
 
 #### system.properties설정값 세팅
@@ -826,7 +677,7 @@ sudo sed -i -E 's/(LOG_LEVEL=).*/\1'${LOG_LEVEL}'/' ${miso_path}/webapps/WEB-INF
 sudo sed -i -E 's/(LOG_OUTPUT_TYPE=).*/\1'${LOG_TYPE}'/' ${miso_path}/webapps/WEB-INF/classes/logback.properties
 sudo sed -i -E 's|(LOG_HOME=).*|\1'${LOG_PATH}'|' ${miso_path}/webapps/WEB-INF/classes/logback.properties
 
-#세션 타입아웃 10으로 수정.
+#세션 타임아웃 10으로 수정.
 sudo cp ${miso_path}/webapps/WEB-INF/web.xml ${miso_path}/webapps/WEB-INF/web.xml.ori
 sudo sed -i 's/<session-timeout>30<\/session-timeout>/<session-timeout>10<\/session-timeout>/g' ${miso_path}/webapps/WEB-INF/web.xml
 
@@ -889,17 +740,11 @@ echo " next (press y or anykey)"
 echo " modify (press n) "
 echo "================================="
 read RET
-case $RET in
-n)
-db_setting
-;;
-y)
-source_db_variable
-;;
-*)
-source_db_variable
-;;
-esac
+if [[ "$RET" == "y" || -z "$RET" ]]; then
+	source_db_variable
+else
+	db_setting
+fi
 }
 source_db_variable()
 {
@@ -920,7 +765,7 @@ editor()
 #파일체크 
 cd ../miso_pack/
 if ls ce_*.zip >/dev/null 2>&1 || [ "$(ls -A namo 2>/dev/null)" ]; then
-	if [ ! -d namo ] && [ "$(which unzip 2>/dev/null)" ]; then
+	if [ ! -d namo ] && [ "$(command -v unzip)" ]; then
 		mkdir namo
 		unzip ce_* -d namo
 	fi
@@ -934,10 +779,10 @@ chmod -R 700 ../miso_pack/namo
 
 #war 안 namo plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
-sudo cp -rp ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
+sudo cp -arp ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
 
 #websource/jsp , manage/jsp 백업
-sudo cp -r ${miso_path}/webapps/web/plugins/namo/websource/jsp ${miso_path}/webapps/web/plugins/namo/websource/jsp.ori
+sudo cp -arp ${miso_path}/webapps/web/plugins/namo/websource/jsp ${miso_path}/webapps/web/plugins/namo/websource/jsp.ori
 #sudo cp -r ${miso_path}/webapps/web/plugins/namo/manage/jsp ${miso_path}/webapps/web/plugins/namo/manage/jsp.ori
 
 #UTF-8 수정
@@ -958,20 +803,12 @@ sudo sed -i 's|String namoFlashPhysicalPath.*|String namoFlashPhysicalPath = "'$
 sudo sed -i 's|String namoImagePhysicalPath.*|String namoImagePhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i -E 's|^imagePhysicalPath = ".*|imagePhysicalPath = "'${miso_path}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
-cnt=0
-while [ "$cnt" == "0" ]; do 
+while true; do
 	read -p "insert URL (ex : http://localhost.com:8080) >" URL
 	read -p "URL = $URL / y(enterkey) n(change) >" RET1
-	case $RET1 in
-	n)
-	;;
-	y)
-	cnt=1
-	;;
-	*)
-	cnt=1
-	;;
-	esac
+	if [[ "$RET" == "y" || -z "$RET" ]]; then
+		break
+	fi
 done
 sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|String namoFlashUPath =.*|String namoFlashUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
@@ -980,21 +817,15 @@ sudo sed -i -E 's|^imageUPath = ".*|imageUPath = "'${URL}'/editorImage";|' ${mis
 #sudo sed -i 's|useExternalServer =.*|useExternalServer = "'${URL}'/editorImage/namo/" + "websource/jsp/ImageUploadExecute.jsp";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
 #Config.xml 파일 수정
-sudo cp -r ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml.ori
+sudo cp -arp ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml.ori
 sudo sed -i 's|<ImageSavePath></ImageSavePath>|<ImageSavePath>'${miso_path}'/editorImage</ImageSavePath>|g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
 sudo sed -i 's|<UploadFileViewer>false</UploadFileViewer>|<UploadFileViewer></UploadFileViewer>|g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
 sudo sed -i 's#<CreateTab>0|1|2</CreateTab>#<CreateTab>0|2</CreateTab>#g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
 sudo sed -i 's#<ReturnKeyActionBR></ReturnKeyActionBR>#<ReturnKeyActionBR>True</ReturnKeyActionBR>#g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
 sudo sed -i 's#<SupportBrowser></SupportBrowser>#<SupportBrowser>0</SupportBrowser>#g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
 
-if [ -d "${miso_path}/editorImage/namo" ]; then
-	echo ${miso_path}"/editorImage/namo already exist"
-	echo "mv file"
-	sudo mv -f ${miso_path}/editorImage/namo ${miso_path}/editorImage/namo.ori
-	echo "mv file done"
-fi
-
-sudo cp -rp ${miso_path}/webapps/web/plugins/namo ${miso_path}/editorImage/.
+dircheck ${miso_path}/editorImage/namo
+sudo cp -arp ${miso_path}/webapps/web/plugins/namo ${miso_path}/editorImage/.
 
 #소유권 수정
 sudo chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
@@ -1008,7 +839,7 @@ crossviewer()
 {
 cd ../miso_pack/
 if ls CrossViewer*.zip >/dev/null 2>&1 || [ "$(ls -A crossViewer 2>/dev/null)" ]; then
-	if [ ! -d crossViewer ] && [ "$(which unzip 2>/dev/null)" ]; then
+	if [ ! -d crossViewer ] && [ "$(command -v unzip)" ]; then
 		mkdir crossViewer
 		unzip CrossViewer* -d crossViewer
 	fi
@@ -1022,7 +853,7 @@ chmod -R 700 ../miso_pack/crossViewer
 
 #war 안 crossViewer plugin 파일 백업
 sudo mv -f ${miso_path}/webapps/web/plugins/crossViewer ${miso_path}/webapps/web/plugins/crossViewer.ori
-sudo cp -rp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
+sudo cp -arp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
 sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|preview.temp.file.abs.path=.*|preview.temp.file.abs.path='${miso_path}'/webapps/web/plugins/crossViewer/viewerTempFile|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "CrossViewer setting done"
@@ -1043,15 +874,14 @@ echo "checking java install"
 if [ -d "${install_path}/java" ]; then
 	echo ${install_path}"/java installed"
 else
-	read -p "install java : yes(enter key) or no(n key) >" RET
-	if [ "${RET}" == "n" ]; then
+	read -p "install java : y(enter key) n(not install) >" RET
+	if [[ "$RET" == "y" || -z "$RET" ]]; then
+		java_install
+	else
 		echo "please install java"
 		exit 0
-	else
-		java_install
 	fi
 fi
-
 while true; do
     read -s -p "Keystore Password: " KEYPASS
     echo
@@ -1101,7 +931,6 @@ firewalld_setting()
 echo "firewall setting rule"
 ZONE="public"
 
-# 전역 배열
 declare -A TYPE_MAP
 declare -A VALUE_MAP
 
@@ -1110,11 +939,10 @@ firewalld_list()
 echo "===== FIREWALL RULE LIST ====="
 TYPE_MAP=()
 VALUE_MAP=()
-mapfile -t PORTS < <(firewall-cmd --zone=$ZONE --list-ports | tr ' ' '\n')
-mapfile -t RICH_RULES < <(firewall-cmd --zone=$ZONE --list-rich-rules)
+mapfile -t PORTS < <(sudo firewall-cmd --zone=$ZONE --list-ports | tr ' ' '\n')
+mapfile -t RICH_RULES < <(sudo firewall-cmd --zone=$ZONE --list-rich-rules)
 INDEX=1
 
-# ports
 for p in "${PORTS[@]}"; do
     [ -z "$p" ] && continue
     echo "$INDEX) port  $p"
@@ -1122,8 +950,6 @@ for p in "${PORTS[@]}"; do
     VALUE_MAP[$INDEX]="$p"
     ((INDEX++))
 done
-
-# rich rules
 for r in "${RICH_RULES[@]}"; do
     echo "$INDEX) rich  $r"
     TYPE_MAP[$INDEX]="rich"
@@ -1138,32 +964,26 @@ echo "input type example"
 echo "1) port, protocol(tcp:omitted): 3306,tcp"
 echo "2) source_ip, port, protocol(tcp:omitted): 10.10.10.5,3306,tcp"
 echo
-
 read -p "data : " INPUT
-
 IFS=',' read -r data1 data2 data3 <<< "$INPUT"
-
 PROTO="tcp"
-
 if [ -n "$data3" ]; then
     PROTO="$data3"
 elif [ -n "$data2" ] && [[ "$data2" =~ ^(tcp|udp)$ ]]; then
     PROTO="$data2"
 fi
-
 if [[ "$data1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
     IP="$data1"
     PORT="$data2"
     echo "rich rule add"
-    firewall-cmd --permanent --zone=$ZONE \
+    sudo firewall-cmd --permanent --zone=$ZONE \
     --add-rich-rule="rule family=\"ipv4\" source address=\"$IP\" port port=\"$PORT\" protocol=\"$PROTO\" accept"
 else
     PORT="$data1"
     echo "port add"
-    firewall-cmd --permanent --zone=$ZONE --add-port=${PORT}/${PROTO}
+    sudo firewall-cmd --permanent --zone=$ZONE --add-port=${PORT}/${PROTO}
 fi
-
-firewall-cmd --reload
+sudo firewall-cmd --reload
 }
 
 firewalld_remove()
@@ -1171,12 +991,10 @@ firewalld_remove()
     firewalld_list
     echo
     read -p "remove number : " NUM
-
     if ! [[ "$NUM" =~ ^[0-9]+$ ]]; then
         echo "invalid input"
         return
     fi
-
     TYPE=${TYPE_MAP[$NUM]}
     VALUE=${VALUE_MAP[$NUM]}
 
@@ -1184,42 +1002,35 @@ firewalld_remove()
         echo "invalid number"
         return
     fi
-
     if [ "$TYPE" == "port" ]; then
         echo "remove port : $VALUE"
-        firewall-cmd --permanent --zone=$ZONE --remove-port=$VALUE
+        sudo firewall-cmd --permanent --zone=$ZONE --remove-port=$VALUE
     else
         echo "remove rich rule"
-        firewall-cmd --permanent --zone=$ZONE --remove-rich-rule="$VALUE"
+        sudo firewall-cmd --permanent --zone=$ZONE --remove-rich-rule="$VALUE"
     fi
-
-    firewall-cmd --reload
+    sudo firewall-cmd --reload
     echo "done"
 }
 
 while true; do
     read -p "[[ add (1), remove (2) list (3) exit (0) ]] > " num
     case $num in
-        1)
-            echo "=========================================="
+        1)  echo "=========================================="
             firewalld_add
             echo "=========================================="
             ;;
-        2)
-            echo "=========================================="
+        2)  echo "=========================================="
             firewalld_remove
             echo "=========================================="
             ;;
-        3)
-            echo "=========================================="
+        3)  echo "=========================================="
             firewalld_list
             echo "=========================================="
             ;;
-        0)
-            break
+        0)  break
             ;;
-        *)
-            echo "invalid menu"
+        *)  echo "invalid menu"
             ;;
     esac
 done
@@ -1231,21 +1042,24 @@ source_sql()
 		echo ${init_sql}" not exist"
 		exit 0
 	fi
-	
 	db_setting_check
 	echo "schema & user set"
-	mysql -u root -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
-	mysql -u root -Bse "CREATE DATABASE \`${DB_NAME}\` /*!40100 COLLATE 'utf8mb4_unicode_ci'*/;"
-	mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
-	mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
-	mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${WAS_IP}';"
-	mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
-	mysql -u root -Bse "FLUSH PRIVILEGES"
+	sudo mysql -u root -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
+	sudo mysql -u root -Bse "CREATE DATABASE \`${DB_NAME}\` /*!40100 COLLATE 'utf8mb4_unicode_ci'*/;"
+	sudo mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
+	sudo mysql -u root -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
+	sudo mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${WAS_IP}';"
+	sudo mysql -u root -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
+	sudo mysql -u root -Bse "FLUSH PRIVILEGES"
 	
-	mysql -u root ${DB_NAME} < ../miso_pack/${init_sql}
+	sudo mysql -u root ${DB_NAME} < ../miso_pack/${init_sql}
 	if [ -n "${alter_sql}" ] && [ -e "../miso_pack/${alter_sql}" ]; then
-		mysql -u root ${DB_NAME} --force < ../miso_pack/${alter_sql}
+		sudo mysql -u root ${DB_NAME} --force < ../miso_pack/${alter_sql}
 	fi
+	
+	#mkdir -p sql
+	#command -v unzip
+	#mv ../miso_pack/miso.core.web-2.0.war ../miso_pack/miso.core.web-2.0.zip
 	#unzip -j miso.core.web-2.0.zip "WEB-INF/classes/database/mysql/*" -d sql
 	echo "db setting done"
 }
@@ -1273,7 +1087,6 @@ grep -E '^\s+[a-zA-Z]{2,}\)' | \
 grep -v '#' | \
 awk -F')' '{gsub(/\t| /,"",$1); printf "  %-15s\n", $1}'
 echo "================================================"
-
 }
 main()
 {
