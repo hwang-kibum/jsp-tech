@@ -774,11 +774,11 @@ else
 	exit 0
 fi
 
-chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
-chmod -R 700 ../miso_pack/namo
+sudo chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/namo
+sudo chmod -R 700 ../miso_pack/namo
 
 #war 안 namo plugin 파일 백업
-sudo mv -f ${miso_path}/webapps/web/plugins/namo ${miso_path}/webapps/web/plugins/namo.ori
+dircheck ${miso_path}/webapps/web/plugins/namo
 sudo cp -arp ../miso_pack/namo ${miso_path}/webapps/web/plugins/namo
 
 #websource/jsp , manage/jsp 백업
@@ -848,12 +848,14 @@ else
 	exit 0
 fi
 
-chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/crossViewer
-chmod -R 700 ../miso_pack/crossViewer
+sudo chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/crossViewer
+sudo chmod -R 700 ../miso_pack/crossViewer
 
 #war 안 crossViewer plugin 파일 백업
-sudo mv -f ${miso_path}/webapps/web/plugins/crossViewer ${miso_path}/webapps/web/plugins/crossViewer.ori
+dircheck ${miso_path}/webapps/web/plugins/crossViewer
+dircheck ${miso_path}/editorImage/crossViewer
 sudo cp -arp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
+sudo cp -arp ../miso_pack/crossViewer ${miso_path}/editorImage/.
 sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 sudo sed -i 's|preview.temp.file.abs.path=.*|preview.temp.file.abs.path='${miso_path}'/webapps/web/plugins/crossViewer/viewerTempFile|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "CrossViewer setting done"
