@@ -4,6 +4,39 @@ source 01.util_Install_latest
 SCRIPTLOGFILE=miso_auto_patch.log
 exec > >(tee -a "$SCRIPTLOGFILE") 2>&1
 echo $DATE" is running" >> ${SCRIPTLOGFILE}
+############variable setting############
+nexus_id=lsm97
+nexus_pw=wlfks@09!
+repository_path='http://10.52.251.103:8083/nexus/content/repositories/releases'
+declare -a download_file=(
+  "/miso_with_cms/content/repositories/releases/jiranjsp/miso.cms.web/2.0/miso.cms.web-2.0.war"
+)
+MISOWAR=miso.cms.web-2.0.war
+########################################
+dircheck()
+{
+    SRC="$1"
+    [ -e "$SRC" ] || [ -L "$SRC" ] || return 0
+    BACKUP="${SRC}_bak_$(date +%Y%m%d_%H%M)"
+    sudo mv "$SRC" "$BACKUP" || return 1
+}
+
+filedownload()
+{
+sudo mkdir -p ../patch
+for file in "${download_file[@]}"; do
+    full_url="$repository_path/$file"
+        filename=$(echo "${file}" | awk -F'/' '{print $NF}')
+    codeckeck=$(sudo curl -u ${nexus_id}:${nexus_pw} -o /dev/null -s -w "%{http_code}" -I "${full_url}")
+    echo "${file}"
+        if [ "$codeckeck" = "200" ]; then
+                curl -f -X GET -u ${nexus_id}:${nexus_pw} "${full_url}" -o ../patch/${filename}
+        else
+                echo "error $codeckeck"
+                sudo rm -rf ../patch
+        fi
+done
+}
 
 patchfile_del()
 {
@@ -34,8 +67,8 @@ fi
 }
 miso_patch()
 {
-
-sudo systemctl stop tomcat || true
+#sudo systemctl stop tomcat || true
+${tomcat_path}/bin/shutdown.sh
 current_date=$(date '+%Y%m%d_%H%M')
 sudo mv ${miso_path}/webapps ${miso_path}/webapps_${current_date}_bak
 
@@ -49,40 +82,25 @@ sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/properties/site
 sudo rm -r ${miso_path}/webapps/web/plugins/namo 
 sudo cp -arp ${miso_path}/webapps_${current_date}_bak/web/plugins/namo ${miso_path}/webapps/web/plugins/
 
-
+dircheck ../patch/patch.sql
 sudo touch ../patch/patch.sql
 
-sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/MYSQL_DDL_6_ALTER.sql ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql
-sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/MYSQL_DDL_6_ALTER.sql ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql
-sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql
-sudo sed -i '/^[[:space:]]*$/d' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql
-
-sed -i '
-s/\r//g                   # 개행처리
-s/[[:space:]]\+/ /g       # 2개이상 공백 1개 치환
-s/[[:space:]]*$//         # 마지막줄 공백제거
-/^[[:space:]]*$/d         # 공백 줄 제거
-' 1.sql
-
-
-oldline=$(sed -n '/./=' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/old_ALTER.sql | tail -n 1)
-newline=$(sed -n '/./=' ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql | tail -n 1)
-
-if [ "$newline" -gt "$oldline" ]; then
-    for (( i=oldline+1; i<=newline; i++ ))
-    do
-        sed -n "${i}p" ${miso_path}/webapps/WEB-INF/classes/database/mysql/new_ALTER.sql >> ../patch/patch.sql
-    done
-else
-    echo "correct"
-fi
-
-printf "\n\n" >> ../patch/patch.sql
-cat ${miso_path}/webapps/WEB-INF/classes/database/mysql/CODE_DML.sql  >> ../patch/patch.sql
-printf "\n\n" >> ../patch/patch.sql
-cat ${miso_path}/webapps/WEB-INF/classes/database/mysql/MESSAGE_DML.sql  >> ../patch/patch.sql
-printf "\n\n" >> ../patch/patch.sql
-cat ${miso_path}/webapps/WEB-INF/classes/database/mysql/PROPERTY_DML.sql  >> ../patch/patch.sql
+EXCLUDE_LIST="99 98"
+for exclude in $EXCLUDE_LIST; do
+	sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_*.sql ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql
+	sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_*.sql ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql
+	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql
+	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql
+	oldline=$(sed -n '/./=' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql | tail -n 1)
+	newline=$(sed -n '/./=' ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql | tail -n 1)
+	if [ "$newline" -gt "$oldline" ]; then
+		for (( i=oldline+1; i<=newline; i++ )); do
+			sed -n "${i}p" ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql >> ../patch/patch.sql
+		done
+	else
+		echo "correct"
+	fi
+done
 
 chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
 
@@ -92,12 +110,11 @@ sudo mysqldump -u ${DB_USER} -p${DEC_VALUE} ${DB_NAME} --single-transaction --tr
 
 sudo mysql -u ${DB_USER} -p${DEC_VALUE} ${DB_NAME} < ../patch/patch.sql
 
-systemctl start tomcat || true
+${tomcat_path}/bin/startup.sh
 
-mv ../patch ../patch_${current_day}
+#systemctl start tomcat || true
+#mv ../patch ../patch_${current_day}
 }
-
-
 webappsfile_del()
 {
 today=$(date +%Y%m%d)
@@ -126,3 +143,21 @@ else
     done
 fi
 }
+
+main()
+{
+	case "$1" in
+		filedownload)
+			filedownload
+			;;
+		  patch)
+			patchfile_del&&miso_patch&&webappsfile_del
+			;;
+		*)
+			echo "Usage: $0 {check|install|help}"
+			exit 0	
+			;;
+        esac
+}
+
+main "$@"
