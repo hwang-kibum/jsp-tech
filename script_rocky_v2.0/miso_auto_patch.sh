@@ -82,24 +82,26 @@ sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/properties/site
 sudo rm -r ${miso_path}/webapps/web/plugins/namo 
 sudo cp -arp ${miso_path}/webapps_${current_date}_bak/web/plugins/namo ${miso_path}/webapps/web/plugins/
 
-dircheck ../patch/patch.sql
-sudo touch ../patch/patch.sql
+
+mkdir -p ../patch/${current_date}
+sudo touch ../patch/${current_date}/patch.sql
 
 EXCLUDE_LIST="99 98"
 for exclude in $EXCLUDE_LIST; do
-	sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_*.sql ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql
-	sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_*.sql ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql
-	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql
-	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql
-	oldline=$(sed -n '/./=' ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_old_ALTER.sql | tail -n 1)
-	newline=$(sed -n '/./=' ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql | tail -n 1)
+	sudo cp ${miso_path}/webapps_${current_date}_bak/WEB-INF/classes/database/mysql/${exclude}_*.sql ../patch/${current_date}/${exclude}_old_ALTER.sql
+	sudo cp ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_*.sql ../patch/${current_date}/${exclude}_new_ALTER.sql
+	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ../patch/${current_date}/${exclude}_old_ALTER.sql
+	sed -i 's/\r//g; s/[[:space:]]\+/ /g; s/[[:space:]]*$//; /^[[:space:]]*$/d' ../patch/${current_date}/${exclude}_new_ALTER.sql
+	oldline=$(sed -n '/./=' ../patch/${current_date}/${exclude}_old_ALTER.sql | tail -n 1)
+	newline=$(sed -n '/./=' ../patch/${current_date}/${exclude}_new_ALTER.sql | tail -n 1)
 	if [ "$newline" -gt "$oldline" ]; then
 		for (( i=oldline+1; i<=newline; i++ )); do
-			sed -n "${i}p" ${miso_path}/webapps/WEB-INF/classes/database/mysql/${exclude}_new_ALTER.sql >> ../patch/patch.sql
+			sed -n "${i}p" ../patch/${current_date}/${exclude}_new_ALTER.sql >> ../patch/${current_date}/patch.sql
 		done
 	else
 		echo "correct"
 	fi
+	
 done
 
 chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/webapps
