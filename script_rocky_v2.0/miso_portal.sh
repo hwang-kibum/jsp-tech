@@ -638,7 +638,9 @@ if [ ! -e "../miso_pack/${webapps}" ]; then
 	exit 0
 fi
 ################################################################################################
-sudo tar -xzf ../miso_pack/"${webapps}"* -C ${miso_path}/webapps --strip-components=1 >/dev/null 2>&1
+#sudo tar -xzf ../miso_pack/"${webapps}"* -C ${miso_path}/webapps --strip-components=1 >/dev/null 2>&1
+sudo cp -a ../miso_pack/${webapps} ${miso_path}/webapps/.
+cd ${miso_path}/webapps; sudo ${install_path}/java/bin/jar -xvf ${webapps}; cd -
 
 #### system.properties설정값 복사
 echo "####setting system.properties"
@@ -646,12 +648,15 @@ sudo cp -arp ${miso_path}/webapps/WEB-INF/classes/properties/system.properties $
 db_setting
 
 #### system.properties설정값 세팅
-sudo sed -i 's|miso.db.url=jdbc:mysql:|#miso.db.url=jdbc:mysql:|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
-sudo sed -i'' -r -e "/#miso.db.url=jdbc:mysql/a\miso.db.url=jdbc:mysql://"${DB_IP}":"${DB_PORT}"/"${DB_NAME}"?autoReconnect=true" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
-sudo sed -i -E 's/(miso.db.user=).*/\1'${DB_USER}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
-sudo sed -i -E 's/(miso.db.password=).*/\1'${DB_PASSWD}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+#sudo sed -i 's|miso.db.url=jdbc:mysql:|#miso.db.url=jdbc:mysql:|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+#sudo sed -i'' -r -e "/#miso.db.url=jdbc:mysql/a\miso.db.url=jdbc:mysql://"${DB_IP}":"${DB_PORT}"/"${DB_NAME}"?autoReconnect=true" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+#sudo sed -i -E 's/(miso.db.user=).*/\1'${DB_USER}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+#sudo sed -i -E 's/(miso.db.password=).*/\1'${DB_PASSWD}'/' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i -E 's|(fileUpload.dir=).*|\1'${miso_path}/fileUpload'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i -E 's|(credentials.properties.file.path=).*|\1'${miso_path}/webapps/WEB-INF/classes/properties/credentials.properties'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+sudo sed -i "/^#/! s|db.user=.*|db.user=${DB_USER}|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+sudo sed -i "/^#/! s|db.password=.*|db.password=${DB_PASSWD}|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+sudo sed -i "/^#/! s|db.url=.*|db.url=jdbc:mysql://${DB_IP}:${DB_PORT}/${DB_NAME}?autoReconnect=true|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "####setting system.properties done"
 
 #### miso Log 설정
@@ -758,7 +763,7 @@ sudo sed -i "/DB_PORT=/ c\DB_PORT="${DB_PORT} 01.util_Install_latest
 sudo sed -i "/DB_USER=/ c\DB_USER="${DB_USER} 01.util_Install_latest
 sudo sed -i "/DB_NAME=/ c\DB_NAME="${DB_NAME} 01.util_Install_latest
 sudo sed -i "/DP_ENC=/ c\DP_ENC="${ENC_VALUE} 01.util_Install_latest
-echo "source path variable  done"
+echo "source db variable done"
 }
 editor()
 {
@@ -847,7 +852,13 @@ else
 	echo "check crossviewer file or unzip"
 	exit 0
 fi
-
+while true; do
+	read -p "insert URL (ex : http://localhost.com:8080) >" URL
+	read -p "URL = $URL / y(enterkey) n(change) >" RET1
+	if [[ "$RET" == "y" || -z "$RET" ]]; then
+		break
+	fi
+done
 sudo chown -R ${SERV_USER}:${SERV_USER} ../miso_pack/crossViewer
 sudo chmod -R 700 ../miso_pack/crossViewer
 
@@ -856,7 +867,7 @@ dircheck ${miso_path}/webapps/web/plugins/crossViewer
 dircheck ${miso_path}/editorImage/crossViewer
 sudo cp -arp ../miso_pack/crossViewer ${miso_path}/webapps/web/plugins/crossViewer
 sudo cp -arp ../miso_pack/crossViewer ${miso_path}/editorImage/.
-sudo sed -i 's|String namoFileUPath =.*|String namoFileUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
+sudo sed -i -E 's|^main.domain=.*|main.domain='${URL}'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i 's|preview.temp.file.abs.path=.*|preview.temp.file.abs.path='${miso_path}'/webapps/web/plugins/crossViewer/viewerTempFile|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "CrossViewer setting done"
 }
@@ -898,7 +909,7 @@ while true; do
 done
 
 ${install_path}/java/bin/keytool -genkey -storetype jks -keystore jsp.jks -storepass "$KEYPASS" -keypass "$KEYPASS" -keyalg RSA -keysize 2048 -startdate "${DATE//-//} 00:00:00" -validity 3650 -dname "CN=jsp, OU=jsp, O=jsp, L=jsp, ST=jsp, C=jsp"
-mv jsp.jks ${miso_path}/ssl
+sudo mv jsp.jks ${miso_path}/ssl
 chown -R ${SERV_USER}:${SERV_USER} ${miso_path}/ssl
 
 echo "
@@ -1059,12 +1070,65 @@ source_sql()
 		sudo mysql -u root ${DB_NAME} --force < ../miso_pack/${alter_sql}
 	fi
 	
-	#mkdir -p sql
-	#command -v unzip
-	#mv ../miso_pack/miso.core.web-2.0.war ../miso_pack/miso.core.web-2.0.zip
-	#unzip -j miso.core.web-2.0.zip "WEB-INF/classes/database/mysql/*" -d sql
 	echo "db setting done"
 }
+source_sql_new()
+{
+	echo "db setting"
+	sudo mysql -u root -Bse "" >/dev/null 2>&1  || { 
+	echo "root@localhost passwd is not null"
+	while true; do
+		read -s -p "check root@localhost passwd: " db_root_pass
+		echo
+		read -s -p "Confirm root@localhost passwd: " db_root_pass2
+		echo
+		
+		if [[ "$db_root_pass" == "$db_root_pass2" && ! -z "$db_root_pass" ]]; then
+			mysql -u root -p${db_root_pass} -Bse "" >/dev/null 2>&1 || {
+				echo "incorrect root@localhost passwd ${db_root_pass}"
+				exit 1
+			}
+			break
+		else
+			echo "Password mismatch or NULL. Try again."
+		fi
+	done
+	}
+	db_setting_check
+	command -v unzip
+	dircheck ../mariadb/sql
+	mkdir -p ../mariadb/sql
+	sudo cp -arp ../miso_pack/miso.cms.web-2.0.war ../miso_pack/miso.cms.web-2.0.zip
+	sudo unzip -j ../miso_pack/miso.cms.web-2.0.zip "WEB-INF/classes/database/mysql/*" -d ../mariadb/sql
+	
+	echo "schema & user set"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "CREATE DATABASE \`${DB_NAME}\` /*!40100 COLLATE 'utf8mb4_unicode_ci'*/;"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'${WAS_IP}' IDENTIFIED BY '${DB_PASSWD}';"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWD}';"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'${WAS_IP}';"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
+	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "FLUSH PRIVILEGES"
+			
+	EXCLUDE_LIST="99 98"
+	#EXCLUDE_LIST="99 98 97"
+	cd ../mariadb/sql
+	while read -r num_sql; do
+		for exclude in $EXCLUDE_LIST; do
+			[ "$num_sql" = "$exclude" ] && continue 2
+		done
+		for file in ${num_sql}_*.sql; do
+			echo "source ${file}"
+			sudo mysql -u${DB_USER} -p${DB_PASSWD} ${DB_NAME} < "$file" || {
+				echo "ERROR: $file"
+				exit 1
+			}
+		done
+	done < <(printf '%s\n' *.sql | sed -n 's/^\([0-9]\+\).*/\1/p' | sort -n)	
+	cd -
+	echo "db setting done"
+}
+
 setcap()
 {
 echo "setcap start"
@@ -1099,7 +1163,7 @@ main()
 		install)
 			check_file&&check_sel&&
 			db_install&&tomcat_install&&makedir&&miso_install&&
-			DB_RUN&&source_sql&&firewalld_setting&&tomcat_RUN
+			DB_RUN&&source_sql_new&&firewalld_setting&&tomcat_RUN
 			;;
 		tomcat)
 			check_file&&check_sel&&
@@ -1116,7 +1180,7 @@ main()
 			makedir&&miso_install
 			;;
 		dbset)
-			source_sql
+			source_sql_new
 			;;
 		namo)
 			editor
