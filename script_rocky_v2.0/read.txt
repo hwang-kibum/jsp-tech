@@ -67,4 +67,8 @@ firewalld (remove number) setting
 2026/04/08 miso_portal.sh
 check dir or file to backup function : dircheck
 
+2026/06/04 waslog_out.sh (create)
+- waslog (catalina.out, miso.log) checking after separation 10min log 
+
+
 
