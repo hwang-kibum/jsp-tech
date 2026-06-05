@@ -69,6 +69,9 @@ check dir or file to backup function : dircheck
 
 2026/06/04 waslog_out.sh (create)
 - waslog (catalina.out, miso.log) checking after separation 10min log 
+2026/06/04 miso_vulnerability.sh (rocky 9.8, db)
+- mariadb ed25519 module setting 
+- password is not change for ed25519, user setting 
 
 
 
