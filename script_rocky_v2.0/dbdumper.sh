@@ -3,8 +3,9 @@
 #                global variables                 #
 ###################################################
 #DB 계정정보
-#USER="root"
-#PW="test@09!@#"
+USER="root"
+PW="Wlfks@09!@#"
+host="localhost"
 
 #DB Name
 #DB_NM="test"
@@ -25,6 +26,10 @@ DATE=$(date +%Y-%m-%d)
 ###################################################
 
 backup(){
+chkp=$(cat /etc/mydumper.cnf 2>/dev/null | grep -i "\[client\]")
+if [ -z "$chkp" ]; then
+	mkcnf
+fi
 	mkdir -p "$BACKUP_DIR"/"$DATE"/backup
 	mkdir -p "$BACKUP_DIR"/"$DATE"/log
 	mkdir -p "$BACKUP_DIR"/"$DATE"/exclude_tables
@@ -53,7 +58,6 @@ $( [ "$DB_NM" != "all" ] && echo "--database=$DB_NM" ) \
 --trx-tables=0 \
 --set-names=utf8mb4 \
 --events --routines --triggers \
---skip-definer \ 
 --logfile="$BACKUP_DIR"/"$DATE"/log/mydumper.log \
 --verbose=3 \
 --clear
@@ -79,6 +83,10 @@ loader() {
 		exit 1
 	fi
 	
+	chkp=$(cat /etc/mydumper.cnf 2>/dev/null | grep -i "\[client\]")
+	if [ -z "$chkp" ]; then
+		mkcnf
+	fi
 	check_date=$1
 	if [ -z "$check_date" ]; then
 		check_date=$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort | tail -1)
@@ -89,7 +97,8 @@ loader() {
 	myloader \
   --defaults-file=/etc/mydumper.cnf \
   --directory="$BACKUP_DIR"/"$check_date"/backup \
-  --threads=1 \
+  --threads=4 \
+  --drop-database \
   --drop-table \
   --logfile="$BACKUP_DIR"/"$DATE"/log/myloader.log 
 	
@@ -100,13 +109,10 @@ loader() {
 }
 
 mkcnf() {
-        cp /etc/mydumper.cnf /etc/mydumper.cnf.ori
-        cat /dev/null > /etc/mydumper.cnf
-        read -s -p "mariadb pw: " USER_PW
-        echo ""
-        echo "[client]
+tee /etc/mydumper.cnf > /dev/null << EOF
+[client]
 user=root
-password=$USER_PW
+password=$PW
 host=127.0.0.1
 port=3306
 
@@ -118,7 +124,8 @@ less-locking=1
 long-query-guard=120
 
 [mydumper_session_variables]
-CHARACTER_SET_RESULTS=NULL" > /etc/mydumper.cnf
+CHARACTER_SET_RESULTS=NULL" 
+EOF
 
 cat /etc/mydumper.cnf
 }
@@ -154,13 +161,12 @@ main()
 		recover)
 			loader $2
 			;;
-		 help|--help|-h)
-			usage
-			;;
 		mkcnf)
             mkcnf
 			;;
-
+		 help|--help|-h)
+			usage
+			;;
 		*)
 			echo "Usage: $0 {backup|recover (yyyy-mm-dd)|help}"
 			exit 0
