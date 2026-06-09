@@ -99,6 +99,30 @@ loader() {
 	fi	
 }
 
+mkcnf() {
+        cp /etc/mydumper.cnf /etc/mydumper.cnf.ori
+        cat /dev/null > /etc/mydumper.cnf
+        read -s -p "mariadb pw: " USER_PW
+        echo ""
+        echo "[client]
+user=root
+password=$USER_PW
+host=127.0.0.1
+port=3306
+
+[mydumper]
+ignore-engines=tokudb
+set-names=utf8mb4
+default-character-set=utf8mb4
+less-locking=1
+long-query-guard=120
+
+[mydumper_session_variables]
+CHARACTER_SET_RESULTS=NULL" > /etc/mydumper.cnf
+
+cat /etc/mydumper.cnf
+}
+
 ###################################################
 #                   start script                  #
 ###################################################
@@ -133,6 +157,10 @@ main()
 		 help|--help|-h)
 			usage
 			;;
+		mkcnf)
+            mkcnf
+			;;
+
 		*)
 			echo "Usage: $0 {backup|recover (yyyy-mm-dd)|help}"
 			exit 0
