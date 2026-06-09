@@ -6,7 +6,7 @@
 USER="root"
 PW="Wlfks@09!@#"
 
-#DB Name (option , schema or all)
+#DB Name
 #DB_NM="miso"
 DB_NM="all"
 
@@ -67,7 +67,7 @@ mydumper \
   --tables-list="$TABLES" \
   --no-data \
   --outputdir="$BACKUP_DIR"/"$DATE"/exclude_tables \
-  --logfile="$BACKUP_DIR"/"$DATE"/log/mydumper.log \
+  --logfile="$BACKUP_DIR"/"$DATE"/log/mydumper_exclude.log \
   --clear
 
 }
