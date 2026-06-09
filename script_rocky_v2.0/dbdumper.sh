@@ -16,8 +16,11 @@ BACKUP_DIR="/data/backup"
 
 #예외 테이블 리스트
 EXCLUDE_LIST=(
-        test.user_bak
-        test.user_backup
+        miso3.user_bak    #스키마 없음
+		miso_restore.user #실제파일
+        miso.user_backup  #테이블 없음
+		miso.user         #실제 파일
+		
 )
 MY_CNF="/etc/my.cnf"
 DATE=$(date +%Y-%m-%d)
@@ -67,7 +70,16 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-TABLES=$(paste -sd, "$BACKUP_DIR"/"$DATE"/skip-tables.txt)
+backup_schema_names=$( find "$BACKUP_DIR"/"$DATE"/backup -type f -name '*-schema-create.sql.gz' | sed 's#.*/##' | sed 's/-schema-create\.sql\.gz$//' )
+TABLES=$(
+while read table; do
+    schema=${table%%.*}
+
+    if echo "$backup_schema_names" | grep -qx "$schema"; then
+        echo "$table"
+    fi
+done < "$BACKUP_DIR/$DATE/skip-tables.txt" | paste -sd,
+)
 
 mydumper \
   --tables-list="$TABLES" \
@@ -93,7 +105,13 @@ loader() {
 	fi
 	mkdir -p "$BACKUP_DIR"/"$DATE"/log
 	> "$BACKUP_DIR/$DATE/log/myloader.log"
-	
+	### 예외테이블 먼저 백업 (예외테이블이 view 테이블을 참조 할수도 있음)
+	myloader \
+  --defaults-file=/etc/mydumper.cnf \
+  --directory="$BACKUP_DIR"/"$check_date"/exclude_tables \
+  --threads=4 \
+  --logfile="$BACKUP_DIR"/"$DATE"/log/myloader_exclude.log 
+		
 	myloader \
   --defaults-file=/etc/mydumper.cnf \
   --directory="$BACKUP_DIR"/"$check_date"/backup \
@@ -106,6 +124,8 @@ loader() {
 		echo "check "$BACKUP_DIR"/"$DATE"/log/myloader.log"
 		exit 1
 	fi	
+	
+
 }
 
 mkcnf() {
@@ -124,7 +144,7 @@ less-locking=1
 long-query-guard=120
 
 [mydumper_session_variables]
-CHARACTER_SET_RESULTS=NULL" 
+CHARACTER_SET_RESULTS=NULL
 EOF
 
 cat /etc/mydumper.cnf
