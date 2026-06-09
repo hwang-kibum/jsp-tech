@@ -113,7 +113,7 @@ tee /etc/mydumper.cnf > /dev/null << EOF
 [client]
 user=root
 password=$PW
-host=127.0.0.1
+host=$host
 port=3306
 
 [mydumper]
