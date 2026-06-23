@@ -47,16 +47,16 @@ DB_USER=jsp
 DB_NAME=miso
 ############################################
 #jdk variable
-JAVAFILE=jdk-8u431-linux-x64.tar.gz
+JAVAFILE=jdk-8u481-linux-x64.tar.gz
 ############################################
 #tomcat variable
-TOMCATFILE=apache-tomcat-9.0.105.tar.gz
+TOMCATFILE=apache-tomcat-9.0.118.tar.gz
 ############################################
 #mariadb variable
-DBFILE=mariadb-11.4.7-linux-systemd-x86_64.tar.gz
+DBFILE=mariadb-11.4.12-linux-systemd-x86_64.tar.gz
 ###########################################
 #miso war variable
-MISOWAR=miso.core.web-2.0.war
+MISOWAR=miso.cms.web-2.0.war
 ###########################################
 #apache variable
 apache_path="${install_path}/httpd"
