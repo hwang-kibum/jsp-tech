@@ -58,6 +58,17 @@ if [ -n "$MYSQL_PASSWORD" ]; then
     MYSQL_OPTS+=("-p${MYSQL_PASSWORD}")
 fi
 
+
+print_tsv_table() {
+    # 한글/영문 혼합 문자열을 printf %-Ns로 맞추면 표시 폭이 깨질 수 있습니다.
+    # TSV로 만든 뒤 column이 터미널 표시 폭 기준으로 정렬하게 합니다.
+    if command -v column >/dev/null 2>&1; then
+        column -t -s $'\t'
+    else
+        cat
+    fi
+}
+
 print_usage() {
     local exit_code="${1:-1}"
 
@@ -993,83 +1004,72 @@ show_password_status() {
     echo "==================================================================="
     echo ""
 
-    printf "%-30s | %-30s | %-15s | %-20s | %-20s | %-28s | %-18s | %-18s | %-10s\n" \
-        "계정" "개별설정" "적용기간(일)" "마지막변경일" "만료예정일" "인증/암호화모듈" "복잡도체크" "이력체크" "상태"
-    echo "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+    {
+        printf "계정\t개별설정\t기간\t마지막변경일\t만료예정일\t인증모듈\t복잡도\t이력\t상태\n"
 
-    mysql "${MYSQL_OPTS[@]}" --batch --skip-column-names -e "
-    SELECT
-        CONCAT(User, '@', Host) AS '계정',
-        CASE
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL THEN '설정없음 (전역값 따름)'
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '무기한 (Never)'
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') = -1 THEN 'DEFAULT (전역값 따름)'
-            ELSE CONCAT(JSON_VALUE(Priv, '$.password_lifetime'), '일')
-        END AS '개별_설정',
-        CASE
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL
-                OR JSON_VALUE(Priv, '$.password_lifetime') = -1
-                THEN @@global.default_password_lifetime
-            ELSE JSON_VALUE(Priv, '$.password_lifetime')
-        END AS '적용_기간(일)',
-        IFNULL(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), 'N/A') AS '마지막_변경일',
-        CASE
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '만료되지 않음'
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') > 0 THEN
-                DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL JSON_VALUE(Priv, '$.password_lifetime') DAY)
-            WHEN (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
-                AND @@global.default_password_lifetime > 0 THEN
-                DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL @@global.default_password_lifetime DAY)
-            ELSE '만료되지 않음'
-        END AS '만료_예정일',
-        IFNULL(
-            NULLIF(
-                CONCAT_WS(', ',
-                    NULLIF(JSON_VALUE(Priv, '$.plugin'), ''),
-                    NULLIF(JSON_VALUE(Priv, '$.auth_or[0].plugin'), ''),
-                    NULLIF(JSON_VALUE(Priv, '$.auth_or[1].plugin'), ''),
-                    NULLIF(JSON_VALUE(Priv, '$.auth_or[2].plugin'), '')
+        mysql "${MYSQL_OPTS[@]}" --batch --skip-column-names -e "
+        SELECT
+            CONCAT(User, '@', Host) AS account,
+            CASE
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL THEN '전역값'
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '무기한'
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') = -1 THEN 'DEFAULT'
+                ELSE CONCAT(JSON_VALUE(Priv, '$.password_lifetime'), '일')
+            END AS individual_policy,
+            CASE
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL
+                    OR JSON_VALUE(Priv, '$.password_lifetime') = -1
+                    THEN @@global.default_password_lifetime
+                ELSE JSON_VALUE(Priv, '$.password_lifetime')
+            END AS effective_lifetime,
+            IFNULL(DATE_FORMAT(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), '%Y-%m-%d %H:%i:%s'), 'N/A') AS last_changed,
+            CASE
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '만료안됨'
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') > 0 THEN
+                    DATE_FORMAT(DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL JSON_VALUE(Priv, '$.password_lifetime') DAY), '%Y-%m-%d %H:%i:%s')
+                WHEN (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
+                    AND @@global.default_password_lifetime > 0 THEN
+                    DATE_FORMAT(DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL @@global.default_password_lifetime DAY), '%Y-%m-%d %H:%i:%s')
+                ELSE '만료안됨'
+            END AS expire_date,
+            IFNULL(
+                NULLIF(
+                    CONCAT_WS(',',
+                        NULLIF(JSON_VALUE(Priv, '$.plugin'), ''),
+                        NULLIF(JSON_VALUE(Priv, '$.auth_or[0].plugin'), ''),
+                        NULLIF(JSON_VALUE(Priv, '$.auth_or[1].plugin'), ''),
+                        NULLIF(JSON_VALUE(Priv, '$.auth_or[2].plugin'), '')
+                    ),
+                    ''
                 ),
-                ''
-            ),
-            'N/A'
-        ) AS '인증_암호화_모듈',
-        $PASSWORD_COMPLEXITY_TARGET_CASE AS '패스워드복잡도체크',
-        $PASSWORD_REUSE_TARGET_CASE AS '패스워드이력체크',
-        CASE
-            WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN 'OK'
-            WHEN @@global.default_password_lifetime = 0
-                AND (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
-                THEN 'OK'
-            WHEN JSON_VALUE(Priv, '$.password_last_changed') IS NULL
-                THEN 'UNKNOWN'
-            WHEN NOW() > DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')),
-                 INTERVAL CASE
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1
-                        THEN @@global.default_password_lifetime
-                    ELSE JSON_VALUE(Priv, '$.password_lifetime')
-                 END DAY)
-                 THEN 'EXPIRED'
-            ELSE 'OK'
-        END AS '상태'
-    FROM
-        mysql.global_priv
-    WHERE
-        $WHERE_CLAUSE
-    ORDER BY
-        User, Host;
-    " | while IFS=$'	' read -r account setting period last_changed expire_date auth_module password_complexity_target password_reuse_target status; do
-        if [ "$status" == "EXPIRED" ]; then
-            status_color="${RED}${status}${NC}"
-        elif [ "$status" == "UNKNOWN" ]; then
-            status_color="${YELLOW}${status}${NC}"
-        else
-            status_color="${GREEN}${status}${NC}"
-        fi
-
-        printf "%-30s | %-30s | %-15s | %-20s | %-20s | %-28s | %-18s | %-18s | %b\n" \
-            "$account" "$setting" "$period" "$last_changed" "$expire_date" "$auth_module" "$password_complexity_target" "$password_reuse_target" "$status_color"
-    done
+                'N/A'
+            ) AS auth_module,
+            $PASSWORD_COMPLEXITY_TARGET_CASE AS password_complexity_target,
+            $PASSWORD_REUSE_TARGET_CASE AS password_reuse_target,
+            CASE
+                WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN 'OK'
+                WHEN @@global.default_password_lifetime = 0
+                    AND (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
+                    THEN 'OK'
+                WHEN JSON_VALUE(Priv, '$.password_last_changed') IS NULL
+                    THEN 'UNKNOWN'
+                WHEN NOW() > DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')),
+                     INTERVAL CASE
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1
+                            THEN @@global.default_password_lifetime
+                        ELSE JSON_VALUE(Priv, '$.password_lifetime')
+                     END DAY)
+                     THEN 'EXPIRED'
+                ELSE 'OK'
+            END AS status
+        FROM
+            mysql.global_priv
+        WHERE
+            $WHERE_CLAUSE
+        ORDER BY
+            User, Host;
+        "
+    } | print_tsv_table
 
     echo ""
     echo "==================================================================="
@@ -1114,84 +1114,82 @@ show_password_status() {
         echo -e "${RED}경고: ${EXPIRED_COUNT}개의 계정이 만료되었습니다!${NC}"
         echo ""
         echo "만료된 계정 목록:"
-        printf "%-30s | %-30s | %-15s | %-20s | %-20s | %-28s | %-18s | %-18s\n" \
-            "계정" "개별설정" "적용기간(일)" "마지막변경일" "만료일" "인증/암호화모듈" "복잡도체크" "이력체크"
-        echo "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
 
-        mysql "${MYSQL_OPTS[@]}" --batch --skip-column-names -e "
-        SELECT
-            account,
-            individual_policy,
-            effective_lifetime,
-            last_changed,
-            expire_date,
-            auth_module,
-            password_complexity_target,
-            password_reuse_target
-        FROM (
+        {
+            printf "계정\t개별설정\t기간\t마지막변경일\t만료일\t인증모듈\t복잡도\t이력\n"
+
+            mysql "${MYSQL_OPTS[@]}" --batch --skip-column-names -e "
             SELECT
-                CONCAT(User, '@', Host) AS account,
-                CASE
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL THEN '설정없음 (전역값 따름)'
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '무기한 (Never)'
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') = -1 THEN 'DEFAULT (전역값 따름)'
-                    ELSE CONCAT(JSON_VALUE(Priv, '$.password_lifetime'), '일')
-                END AS individual_policy,
-                CASE
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL
-                        OR JSON_VALUE(Priv, '$.password_lifetime') = -1
-                        THEN @@global.default_password_lifetime
-                    ELSE JSON_VALUE(Priv, '$.password_lifetime')
-                END AS effective_lifetime,
-                IFNULL(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), 'N/A') AS last_changed,
-                CASE
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '만료되지 않음'
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') > 0 THEN
-                        DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL JSON_VALUE(Priv, '$.password_lifetime') DAY)
-                    WHEN (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
-                        AND @@global.default_password_lifetime > 0 THEN
-                        DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL @@global.default_password_lifetime DAY)
-                    ELSE '만료되지 않음'
-                END AS expire_date,
-                IFNULL(
-                    NULLIF(
-                        CONCAT_WS(', ',
-                            NULLIF(JSON_VALUE(Priv, '$.plugin'), ''),
-                            NULLIF(JSON_VALUE(Priv, '$.auth_or[0].plugin'), ''),
-                            NULLIF(JSON_VALUE(Priv, '$.auth_or[1].plugin'), ''),
-                            NULLIF(JSON_VALUE(Priv, '$.auth_or[2].plugin'), '')
+                account,
+                individual_policy,
+                effective_lifetime,
+                last_changed,
+                expire_date,
+                auth_module,
+                password_complexity_target,
+                password_reuse_target
+            FROM (
+                SELECT
+                    CONCAT(User, '@', Host) AS account,
+                    CASE
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL THEN '전역값'
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '무기한'
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') = -1 THEN 'DEFAULT'
+                        ELSE CONCAT(JSON_VALUE(Priv, '$.password_lifetime'), '일')
+                    END AS individual_policy,
+                    CASE
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL
+                            OR JSON_VALUE(Priv, '$.password_lifetime') = -1
+                            THEN @@global.default_password_lifetime
+                        ELSE JSON_VALUE(Priv, '$.password_lifetime')
+                    END AS effective_lifetime,
+                    IFNULL(DATE_FORMAT(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), '%Y-%m-%d %H:%i:%s'), 'N/A') AS last_changed,
+                    CASE
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN '만료안됨'
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') > 0 THEN
+                            DATE_FORMAT(DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL JSON_VALUE(Priv, '$.password_lifetime') DAY), '%Y-%m-%d %H:%i:%s')
+                        WHEN (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
+                            AND @@global.default_password_lifetime > 0 THEN
+                            DATE_FORMAT(DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')), INTERVAL @@global.default_password_lifetime DAY), '%Y-%m-%d %H:%i:%s')
+                        ELSE '만료안됨'
+                    END AS expire_date,
+                    IFNULL(
+                        NULLIF(
+                            CONCAT_WS(',',
+                                NULLIF(JSON_VALUE(Priv, '$.plugin'), ''),
+                                NULLIF(JSON_VALUE(Priv, '$.auth_or[0].plugin'), ''),
+                                NULLIF(JSON_VALUE(Priv, '$.auth_or[1].plugin'), ''),
+                                NULLIF(JSON_VALUE(Priv, '$.auth_or[2].plugin'), '')
+                            ),
+                            ''
                         ),
-                        ''
-                    ),
-                    'N/A'
-                ) AS auth_module,
-                $PASSWORD_COMPLEXITY_TARGET_CASE AS password_complexity_target,
-                $PASSWORD_REUSE_TARGET_CASE AS password_reuse_target,
-                CASE
-                    WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN 'OK'
-                    WHEN @@global.default_password_lifetime = 0
-                        AND (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
-                        THEN 'OK'
-                    WHEN JSON_VALUE(Priv, '$.password_last_changed') IS NULL
-                        THEN 'UNKNOWN'
-                    WHEN NOW() > DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')),
-                         INTERVAL CASE
-                            WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1
-                                THEN @@global.default_password_lifetime
-                            ELSE JSON_VALUE(Priv, '$.password_lifetime')
-                         END DAY)
-                         THEN 'EXPIRED'
-                    ELSE 'OK'
-                END AS status
-            FROM mysql.global_priv
-            WHERE ($WHERE_CLAUSE)
-        ) AS expired_result
-        WHERE status = 'EXPIRED'
-        ORDER BY account;
-        " | while IFS=$'	' read -r account setting period last_changed expire_date auth_module password_complexity_target password_reuse_target; do
-            printf "%-30s | %-30s | %-15s | %-20s | %-20s | %-28s | %-18s | %-18s\n" \
-                "$account" "$setting" "$period" "$last_changed" "$expire_date" "$auth_module" "$password_complexity_target" "$password_reuse_target"
-        done
+                        'N/A'
+                    ) AS auth_module,
+                    $PASSWORD_COMPLEXITY_TARGET_CASE AS password_complexity_target,
+                    $PASSWORD_REUSE_TARGET_CASE AS password_reuse_target,
+                    CASE
+                        WHEN JSON_VALUE(Priv, '$.password_lifetime') = 0 THEN 'OK'
+                        WHEN @@global.default_password_lifetime = 0
+                            AND (JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1)
+                            THEN 'OK'
+                        WHEN JSON_VALUE(Priv, '$.password_last_changed') IS NULL
+                            THEN 'UNKNOWN'
+                        WHEN NOW() > DATE_ADD(FROM_UNIXTIME(JSON_VALUE(Priv, '$.password_last_changed')),
+                             INTERVAL CASE
+                                WHEN JSON_VALUE(Priv, '$.password_lifetime') IS NULL OR JSON_VALUE(Priv, '$.password_lifetime') = -1
+                                    THEN @@global.default_password_lifetime
+                                ELSE JSON_VALUE(Priv, '$.password_lifetime')
+                             END DAY)
+                             THEN 'EXPIRED'
+                        ELSE 'OK'
+                    END AS status
+                FROM mysql.global_priv
+                WHERE ($WHERE_CLAUSE)
+            ) AS expired_result
+            WHERE status = 'EXPIRED'
+            ORDER BY account;
+            "
+        } | print_tsv_table
     else
         echo -e "${GREEN}모든 조회된 계정이 정상 상태입니다.${NC}"
     fi
