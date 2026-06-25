@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # MariaDB 비밀번호 만료/인증 플러그인 관리 스크립트
-
+source 01.util_Install_latest 2>/dev/null
 # ==================== 설정 영역 ====================
 MYSQL_USER="root"
-MYSQL_PASSWORD="[PASSWORD]"
+MYSQL_PASSWORD="Wlfks@09!@#"
 
 # 접속 방식
 # - SOCKET: Unix socket으로 접속합니다. root@localhost 계정 사용 시 권장합니다.
@@ -57,6 +57,10 @@ esac
 
 if [ -n "$MYSQL_PASSWORD" ]; then
     MYSQL_OPTS+=("-p${MYSQL_PASSWORD}")
+elif [ -n "$DRP_ENC" ]; then
+	salt=$(printf $SERV_USER | md5sum | cut -c1-16)
+	DEC_VALUE=$(echo $DRP_ENC | openssl enc -aes-256-cbc -a -d -S $salt -pbkdf2 -iter 100000 -pass pass:$MY_USER 2>/dev/null)
+	MYSQL_OPTS+=("-p${DEC_VALUE}")
 fi
 
 
@@ -220,6 +224,7 @@ escape_password() {
 # - 접속 실패 상태에서 조회를 계속하면 "정상"처럼 보이는 오탐이 발생할 수 있으므로 즉시 중단합니다.
 # - TCP localhost가 IPv6 ::1로 해석되어 root@::1 인증 오류가 나는 상황을 명확히 안내합니다.
 check_mysql_connection() {
+	
     local output
 
     output=$(mysql "${MYSQL_OPTS[@]}" --batch --skip-column-names -e "SELECT 1;" 2>&1)
@@ -737,7 +742,7 @@ build_identified_clause() {
     local auth_plugin="$2"
     local escaped_password
     escaped_password=$(escape_password "$password")
-
+	
     if [ -n "$auth_plugin" ]; then
         check_auth_plugin_active "$auth_plugin"
         echo "IDENTIFIED VIA $auth_plugin USING PASSWORD('$escaped_password')"
@@ -798,6 +803,8 @@ set_password_policy() {
 
     local safe_user
     local safe_host
+	local changed_password
+	
     safe_user=$(escape_sql_string "$user")
     safe_host=$(escape_sql_string "$host")
 
@@ -840,12 +847,13 @@ set_password_policy() {
 
             identified_clause=$(build_identified_clause "$new_password" "$auth_plugin")
             sql="ALTER USER '$safe_user'@'$safe_host' $identified_clause PASSWORD EXPIRE NEVER;"
-
+			
             if [ -n "$auth_plugin" ]; then
                 echo -e "${GREEN}→ 비밀번호를 재설정하고 인증 플러그인을 $auth_plugin 으로 변경하며 만료되지 않도록 설정합니다.${NC}"
             else
                 echo -e "${GREEN}→ 비밀번호를 재설정하고 만료되지 않도록 설정합니다.${NC}"
             fi
+			changed_password="$new_password"
             ;;
         "reset-with")
             if [ -z "$new_password" ] || [ -z "$days" ]; then
@@ -871,11 +879,12 @@ set_password_policy() {
             else
                 echo -e "${GREEN}→ 비밀번호를 재설정하고 ${days}일 후 만료되도록 설정합니다.${NC}"
             fi
+			changed_password="$new_password"
             ;;
         "auth-plugin"|"plugin")
             auth_plugin="$new_password"
             local plugin_password="$days"
-
+			
             if [ -z "$auth_plugin" ]; then
                 echo -e "${RED}ERROR: 인증 플러그인을 입력해주세요.${NC}"
                 echo "예시: $0 set $account auth-plugin ed25519 '[PASSWORD]'"
@@ -898,6 +907,7 @@ set_password_policy() {
                 echo -e "${YELLOW}→ 인증 플러그인만 $auth_plugin 으로 변경합니다.${NC}"
                 echo -e "${YELLOW}주의: 비밀번호 기반 플러그인은 비밀번호를 함께 지정하는 방식을 권장합니다.${NC}"
             fi
+			changed_password="$escaped_password"
             ;;
         [0-9]*)
             if [[ ! "$policy" =~ ^[0-9]+$ ]]; then
@@ -956,6 +966,16 @@ set_password_policy() {
         FROM mysql.global_priv
         WHERE User = '$safe_user' AND Host = '$safe_host';
         " 2>/dev/null
+		#echo "#################"
+		#echo "$changed_password"
+		#echo "#################"
+	if [[ "$safe_user" == "root" ]] && [[ "$safe_host" == "localhost" ]] && [[ -n "$changed_password" ]]; then
+		#salt=$(printf $SERV_USER | md5sum | cut -c1-16)
+		#ENC_VALUE=$(echo $changed_password | openssl enc -aes-256-cbc -a -S $salt -pbkdf2 -iter 100000 -pass pass:$MY_USER)
+		#sudo sed -i "/DRP_ENC=/ c\DRP_ENC="${ENC_VALUE} 01.util_Install_latest
+		escaped_sed=$(printf '%s\n' "$changed_password" | sed 's/[\/&]/\\&/g')
+		sed -i "s/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=\"$escaped_sed\"/" "$0"
+	fi
     else
         [ -n "$mysql_output" ] && echo "$mysql_output"
         echo -e "${RED}✗ 설정 실패${NC}"
