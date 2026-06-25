@@ -22,6 +22,7 @@ ACCOUNTS=(
     "all"
 )
 
+#mariadb.sys, mysql 계정 조회시 false, 미포함 조회시 true
 EXCLUDE_SYSTEM_ACCOUNTS=false
 
 # 비밀번호 재설정 시 기본 인증 플러그인
