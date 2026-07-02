@@ -25,8 +25,12 @@ fi
 done
 
 if [ -z $passwd ]; then
-	echo "check tomcat path or process"
-	exit 0
+	if command -v htpasswd >/dev/null 2>&1; then
+		passwd=$(htpasswd -bnBC 10 "" "1" | tr -d ':\n')
+	else
+		echo "check tomcat path or process"
+		exit 0
+	fi
 fi
 #echo $passwd
 }
