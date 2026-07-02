@@ -73,6 +73,8 @@ check dir or file to backup function : dircheck
 - mariadb ed25519 module setting 
 - password is not change for ed25519, user setting 
 
-2026/07/02 miso_portal.sh 
+2026/07/02 miso_portal.sh, web_passwd.sh
 - java25 libjli.so : change path (java/lib/libjli.so)
 - change setcap (f) : find ${install_path}/java -name "*libjli" |head -n 1 >>> insert /etc/ld.so.conf.d/java.conf 
+- not running tomcat > htpasswd (command) check > change user passwd
+
