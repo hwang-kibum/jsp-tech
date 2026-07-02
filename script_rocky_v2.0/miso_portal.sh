@@ -441,7 +441,7 @@ echo "#####DB install"
 read -p "INSTALL MARIADB (install(y or anykey) | not install (n key)) >" DBINSTALLQ
 if [[ "$DBINSTALLQ" == "n" ]]; then
 	echo "use other server DB"
-	return 0
+	return
 fi
 #### Symbolic link
 result1=$(find /usr -name libncurses.so.5 2>/dev/null -print -quit)
@@ -1006,14 +1006,14 @@ firewalld_remove()
     read -p "remove number : " NUM
     if ! [[ "$NUM" =~ ^[0-9]+$ ]]; then
         echo "invalid input"
-        return
+        return 0
     fi
     TYPE=${TYPE_MAP[$NUM]}
     VALUE=${VALUE_MAP[$NUM]}
 
     if [ -z "$TYPE" ]; then
         echo "invalid number"
-        return
+        return 0
     fi
     if [ "$TYPE" == "port" ]; then
         echo "remove port : $VALUE"
@@ -1098,8 +1098,8 @@ source_sql_new()
 	command -v unzip
 	dircheck ../mariadb/sql
 	mkdir -p ../mariadb/sql
-	sudo cp -arp ../miso_pack/miso.cms.web-2.0.war ../miso_pack/miso.cms.web-2.0.zip
-	sudo unzip -j ../miso_pack/miso.cms.web-2.0.zip "WEB-INF/classes/database/mysql/*" -d ../mariadb/sql
+	sudo cp -arp ../miso_pack/${webapps} ../miso_pack/miso.zip
+	sudo unzip -j ../miso_pack/miso.zip "WEB-INF/classes/database/mysql/*" -d ../mariadb/sql
 	
 	echo "schema & user set"
 	sudo mysql -u root ${db_root_pass:+-p"$db_root_pass"} -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
@@ -1131,16 +1131,21 @@ source_sql_new()
 
 setcap()
 {
-echo "setcap start"
+echo "####setcap start"
+check_path_jli=$(find ${install_path}/java -name "*libjli.so" 2>/dev/null | head -n 1 )
+if [ -z ${check_path_jli} ]; then
+	echo "Not Found libjli.so"
+	return 0
+fi
 sudo setcap "cap_net_bind_service=+ep" ${install_path}/java/bin/java
 sudo getcap ${install_path}/java/bin/java
 
 sudo bash -c "cat > /etc/ld.so.conf.d/java.conf" << EOF
-${install_path}/java/jre/lib/amd64/jli/
+$(dirname ${check_path_jli})
 EOF
 
-sudo ldconfig | grep java
-echo "setcap done"
+sudo ldconfig -v | grep java
+echo "####setcap done"
 }
 usage() 
 {
