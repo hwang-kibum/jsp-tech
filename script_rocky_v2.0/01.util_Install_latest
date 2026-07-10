@@ -10,7 +10,7 @@ DATE=$(date "+%Y-%m-%d")
 #Global variable
 install_path=/data
 local_backup_path=/backup
-
+###########################################
 DP_ENC=
 DRP_ENC=
 RP_ENC=
@@ -22,7 +22,7 @@ tlog_path="${install_path}/logs/tomcat"
 db_path="${install_path}/mariadb"
 dbdata_path="${install_path}/mariadbData"
 dlog_path="${install_path}/logs/mariadb"
-
+###########################################
 HOST_IP=127.0.0.1
 WAS_IP=127.0.0.1
 DB_IP=127.0.0.1
@@ -34,24 +34,20 @@ DB_NAME=miso
 JAVAFILE=jdk-8u451-linux-x64.tar.gz
 ############################################
 #tomcat variable
-TOMCATFILE=apache-tomcat-9.0.118.tar.gz
+TOMCATFILE=apache-tomcat-9.0.119.tar.gz
 ############################################
 #mariadb variable
 DBFILE=mariadb-11.4.12-linux-systemd-x86_64.tar.gz
 ###########################################
-#apache variable
-apache_path="${install_path}/httpd"
-pcre_file=pcre-8.45.tar.gz
-apr_file=apr-1.7.6.tar.gz
-apr_util_file=apr-util-1.6.3.tar.gz
-apache_file=httpd-2.4.66.tar.gz
-connector_file=tomcat-connectors-1.2.50-src.tar.gz
+#mysql variable
+DBFILE_mysql=mysql-9.7.1-linux-glibc2.28-x86_64.tar.xz
 ###########################################
 #webapps variable
 webapps=miso.cms.web-2.0.war
 #webapps=ROOT.tar.gz
 #init_sql=miso_init.sql
 #alter_sql=
+###########################################
 ### read
 :<<END
 find . -type f -exec sed -i 's/\r//g' {} \;
