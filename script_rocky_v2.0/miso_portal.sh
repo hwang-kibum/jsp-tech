@@ -433,16 +433,211 @@ fi
 }
 db_install()
 {
+read -p "INSTALL DB (install(y or anykey) | not install (n key)) >" DBINSTALLQ
+if [[ "$DBINSTALLQ" == "n" ]]; then
+	echo "use other server DB"
+	return
+fi
+
+local MYSQL_PATH="../mariadb/${DBFILE_mysql}"
+local MARIADB_PATH="../mariadb/${DBFILE}"
+    # 1순위: mysql - 변수가 정의되어 있고, 실제 파일도 존재할 때만
+if [ -n "${DBFILE_mysql}" ] && [ -e "${MYSQL_PATH}" ]; then
+	echo "#####DB install : MySQL"
+	sudo sed -i "/db_path=/ c\db_path=${install_path}/mysql" 01.util_Install_latest
+	sudo sed -i "/dbdata_path=/ c\dbdata_path=${install_path}/mysql_data" 01.util_Install_latest
+	sudo sed -i "/dlog_path=/ c\dlog_path=${install_path}/logs/mysql" 01.util_Install_latest
+	source 01.util_Install_latest
+	mysql_install
+	# 2순위: mariadb - 변수가 정의되어 있고, 실제 파일도 존재할 때만
+elif [ -n "${DBFILE}" ] && [ -e "${MARIADB_PATH}" ]; then
+	echo "#####DB install : MariaDB"
+	sudo sed -i "/db_path=/ c\db_path=${install_path}/mariadb" 01.util_Install_latest
+	sudo sed -i "/dbdata_path=/ c\dbdata_path=${install_path}/mariadbData" 01.util_Install_latest
+	sudo sed -i "/dlog_path=/ c\dlog_path=${install_path}/logs/mariadb" 01.util_Install_latest
+	source 01.util_Install_latest
+	mariadb_install
+else
+	echo "DBFILE_mysql or DBFILE is not set, or target file not exist"
+	exit 0
+fi
+}
+
+mysql_install()
+{
+if [ ! -e "../mariadb/${DBFILE_mysql}" ]; then
+	echo ${DBFILE}" not exist"
+	exit 0
+fi
+checking
+while true; do
+    read -s -p "change root@localhost Password: " dbPASS
+    echo
+    read -s -p "Confirm Password: " dbPASS2
+    echo
+	trimmed=$(echo "${dbPASS}" | xargs)
+	if [[ -z "${trimmed}" ]]; then
+		echo "Password cannot be empty or blank. Try again."
+		continue
+	fi
+    if [[ "$dbPASS" == "$dbPASS2" ]]; then
+        DBPASSWORD=${dbPASS}
+		break
+    else
+        echo "Password mismatch. Try again."
+    fi
+done
+
+if [ "${checkuserdb}" == "0" ]; then
+check_user_db
+fi
+dircheck ${db_path}
+dircheck ${dlog_path}
+dircheck ${dbdata_path}
+dircheck /usr/lib/systemd/system/mysql.service 
+dircheck /etc/my.cnf
+######################################################################################
+sudo mkdir -p ${db_path}
+sudo tar -xvf ../mariadb/"${DBFILE_mysql}"* -C ${db_path} --strip-components=1 >/dev/null 2>&1
+sudo mkdir -p ${dbdata_path}
+sudo mkdir -p ${dlog_path}/{error,slow,binlog}
+
+sudo mkdir -p ${db_path}/conf-set
+sudo mkdir -p ${db_path}/tmp
+
+sudo tee ${db_path}/conf-set/my.cnf > /dev/null << EOF
+[client]
+port            = 3306
+socket          = ${db_path}/mysqld.sock
+default-character-set = utf8mb4
+
+[mysqld]
+user            = ${MY_USER}
+port            = 3306
+socket          = ${db_path}/mysqld.sock
+pid-file        = ${db_path}/mysqld.pid
+datadir         = ${dbdata_path}
+tmpdir          = ${db_path}/tmp
+
+character-set-server   = utf8mb4
+collation-server        = utf8mb4_0900_ai_ci
+
+max_connections         = 300
+max_allowed_packet       = 64M
+wait_timeout             = 600
+interactive_timeout      = 600
+skip-name-resolve
+
+default_storage_engine        = InnoDB
+innodb_buffer_pool_size       = 4G      # 전체 RAM의 60~70%
+innodb_buffer_pool_instances  = 4       # 버퍼풀 8G↑ 이면 조정
+innodb_redo_log_capacity = 1G
+innodb_flush_log_at_trx_commit = 1
+innodb_flush_method            = O_DIRECT
+innodb_file_per_table           = 1
+innodb_io_capacity              = 2000
+innodb_io_capacity_max          = 4000
+
+log_error               = ${dlog_path}/error/error.log
+slow_query_log           = 1
+slow_query_log_file      = ${dlog_path}/slow/slow.log
+long_query_time          = 1
+
+log_bin                  = ${dlog_path}/binlog/mysql-bin
+binlog_expire_logs_seconds = 604800     # 7일 (구 expire_logs_days 는 제거됨)
+max_binlog_size            = 100M
+binlog_format               = ROW
+
+[mysqldump]
+quick
+quote-names
+max_allowed_packet = 64M
+EOF
+
+sudo tee ${db_path}/conf-set/mysql.service > /dev/null << EOF
+[Unit]
+Description=MySQL 9 Server
+After=network.target
+
+[Service]
+Type=forking
+User=${MY_USER}
+Group=${MY_USER}
+
+PIDFile=${db_path}/mysqld.pid
+
+ExecStart=${db_path}/bin/mysqld --defaults-file=${db_path}/conf-set/my.cnf --daemonize
+ExecStop=${db_path}/bin/mysqladmin --socket=${db_path}/mysql.sock shutdown
+
+Restart=always
+RestartSec=5
+
+LimitNOFILE=65535
+TimeoutSec=300
+
+[Install]
+WantedBy=multi-user.targe
+EOF
+
+chown -R ${MY_USER}:${MY_USER} ${db_path}
+chown -R ${MY_USER}:${MY_USER} ${dbdata_path}
+chown -R ${MY_USER}:${MY_USER} ${dlog_path}
+sudo cp -a ${db_path}/conf-set/mysql.service /usr/lib/systemd/system/.
+sudo cp -a ${db_path}/conf-set/my.cnf /etc/.
+
+sudo ${db_path}/bin/mysqld --defaults-file=${db_path}/conf-set/my.cnf --initialize --user=${MY_USER}
+sudo systemctl daemon-reload
+systemctl start mysql.service
+if [ $? -ne 0 ]; then
+    echo "[ERROR] systemctl start 실패 (exit code: $?)"
+    systemctl status mysql.service --no-pager
+    exit 1
+fi
+systemctl enable mysql.service
+
+initpasswd=$(grep -oP '(?<=root@localhost: ).*' ${dlog_path}/error/error.log)
+${db_path}/bin/mysql -u root -p"${initpasswd}" --connect-expired-password -Bse "ALTER USER 'root'@'localhost' IDENTIFIED BY '${DBPASSWORD}';" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "not change to passwd"
+    exit 1
+fi
+
+if [ -e "/usr/bin/mysql" ]; then
+	echo "/usr/bin/mysql already exist"
+else
+	sudo cp ${db_path}/bin/mysql /usr/bin/mysql
+	echo ${db_path}"/bin/mysql /usr/bin/mysql"
+fi
+
+if [ -e "/usr/bin/mysqld" ]; then
+	echo "/usr/bin/mysqld already exist"
+else
+	sudo cp ${db_path}/bin/mysqld /usr/bin/mysqld
+	echo ${db_path}"/bin/mysqld /usr/bin/mysqld"
+fi
+if [ -e "/usr/bin/mysqldump" ]; then
+	echo "/usr/bin/mysqldump already exist"
+else
+	sudo cp ${db_path}/bin/mysqldump /usr/bin/mysqldump
+	echo ${db_path}"/bin/mysqldump /usr/bin/mysqldump"
+fi
+if [ -e "/usr/bin/mysqladmin" ]; then
+	echo "/usr/bin/mysqladmin already exist"
+else
+	sudo cp ${db_path}/bin/mysqladmin /usr/bin/mysqladmin
+	echo ${db_path}"/bin/mysqladmin /usr/bin/mysqladmin"
+fi
+
+echo "#####DB install done"
+}
+
+mariadb_install()
+{
 if [ ! -e "../mariadb/${DBFILE}" ]; then
 	echo ${DBFILE}" not exist"
 	exit 0
 fi
 echo "#####DB install"
-read -p "INSTALL MARIADB (install(y or anykey) | not install (n key)) >" DBINSTALLQ
-if [[ "$DBINSTALLQ" == "n" ]]; then
-	echo "use other server DB"
-	return
-fi
 #### Symbolic link
 result1=$(find /usr -name libncurses.so.5 2>/dev/null -print -quit)
 result2=$(find /usr -name 'libncursesw.so.6*' 2>/dev/null -print -quit)
