@@ -79,7 +79,7 @@ check dir or file to backup function : dircheck
 - not running tomcat > htpasswd (command) check > change user passwd
 
 2026/07/10 01.util_install_latest, miso_portal.sh
-- mysql portable f add 
-- 01.utail_install_latest in {DBFILE. DBFILE_mysql} check after install
+- mysql portable (f) add 
+- 01.util_install_latest in {DBFILE, DBFILE_mysql} check after install
 - if DBFILE* variables in text > install sequence (mysql > mariadb)
 - this check os : RHEL9.8 , mysql9.7 test-done
