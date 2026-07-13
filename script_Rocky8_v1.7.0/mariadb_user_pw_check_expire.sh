@@ -4,7 +4,7 @@
 source 01.util_Install_latest 2>/dev/null
 # ==================== 설정 영역 ====================
 MYSQL_USER="root"
-MYSQL_PASSWORD="Wlfks@09!@#"
+MYSQL_PASSWORD="PASSWORD"
 
 # 접속 방식
 # - SOCKET: Unix socket으로 접속합니다. root@localhost 계정 사용 시 권장합니다.
