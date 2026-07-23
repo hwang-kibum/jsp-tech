@@ -83,3 +83,6 @@ check dir or file to backup function : dircheck
 - 01.util_install_latest in {DBFILE, DBFILE_mysql} check after install
 - if DBFILE* variables in text > install sequence (mysql > mariadb)
 - this check os : RHEL9.8 , mysql9.7 test-done
+
+2026/07/24 miso_portal.sh
+- system property > jdbc_url : mysql to mariadb change
