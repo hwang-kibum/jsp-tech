@@ -851,7 +851,8 @@ sudo sed -i -E 's|(fileUpload.dir=).*|\1'${miso_path}/fileUpload'|' ${miso_path}
 sudo sed -i -E 's|(credentials.properties.file.path=).*|\1'${miso_path}/webapps/WEB-INF/classes/properties/credentials.properties'|' ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i "/^#/! s|db.user=.*|db.user=${DB_USER}|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 sudo sed -i "/^#/! s|db.password=.*|db.password=${DB_PASSWD}|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
-sudo sed -i "/^#/! s|db.url=.*|db.url=jdbc:mysql://${DB_IP}:${DB_PORT}/${DB_NAME}?autoReconnect=true|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
+#spring7 이상 jdbc : mariadb , 기존 mysql
+sudo sed -i "/^#/! s|db.url=.*|db.url=jdbc:mariadb://${DB_IP}:${DB_PORT}/${DB_NAME}?autoReconnect=true|" ${miso_path}/webapps/WEB-INF/classes/properties/system.properties
 echo "####setting system.properties done"
 
 #### miso Log 설정
