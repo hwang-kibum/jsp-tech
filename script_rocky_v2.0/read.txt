@@ -86,3 +86,7 @@ check dir or file to backup function : dircheck
 
 2026/07/24 miso_portal.sh
 - system property > jdbc_url : mysql to mariadb change
+
+2026/07/28 web_passwd (glibc 2.28)
+- miso getEncPassword.do not working 
+- input user_id web_port > passwd : user_id
