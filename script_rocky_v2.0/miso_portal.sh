@@ -1343,6 +1343,365 @@ EOF
 sudo ldconfig -v | grep java
 echo "####setcap done"
 }
+
+menu(){
+while true; do
+    read -p "[[ list UI (1), list all (2) change (3) exit (0) ]] > " num
+    case $num in
+        1)  echo "=========================================="
+            menu_list 
+            echo "=========================================="
+            ;;
+        2)  echo "=========================================="
+            menu_list all 
+            echo "=========================================="
+            ;;
+        3)  echo "=========================================="
+            menu_change
+            echo "=========================================="
+            ;;
+        0)  break
+            ;;
+        *)  echo "invalid menu"
+            ;;
+    esac
+done
+}
+
+menu_change() {
+    salt=$(printf '%s' "$SERV_USER" | md5sum | cut -c1-16)
+    DEC_VALUE=$(echo "$DP_ENC" | openssl enc -aes-256-cbc -a -d -S "$salt" -pbkdf2 -iter 100000 -pass pass:"$MY_USER" 2>/dev/null)
+    declare -A MENU_NM
+    declare -A MENU_YN
+    declare -A MENU_DEPTH
+    declare -A MENU_PARENT
+    declare -A MENU_CHILDREN
+    declare -a MAIN_IDS
+
+    while IFS=$'\t' read -r menu_id parent_id menu_nm ord_no depth use_yn sort_path
+    do
+        MENU_NM["$menu_id"]="$menu_nm"
+        MENU_YN["$menu_id"]="$use_yn"
+        MENU_DEPTH["$menu_id"]="$depth"
+        MENU_PARENT["$menu_id"]="$parent_id"
+
+        if [ "$depth" -eq 1 ]; then
+            MAIN_IDS+=("$menu_id")
+        else
+            MENU_CHILDREN["$parent_id"]+=" $menu_id"
+        fi
+    done < <(
+        mysql -N -B -u "${DB_USER}" -p"${DEC_VALUE}" "${DB_NAME}" <<SQL
+WITH RECURSIVE normalized AS (
+    SELECT menu_id, menu_nm, use_yn, ORD_NO,
+        CASE
+            WHEN menu_id = menu_group_id THEN 1
+            WHEN menu_group_id IS NOT NULL
+                 AND menu_group_id <> 0 THEN 2
+            ELSE 3
+        END AS depth,
+        CASE
+            WHEN menu_id = menu_group_id THEN NULL
+            WHEN menu_group_id IS NOT NULL
+                 AND menu_group_id <> 0 THEN menu_group_id
+            ELSE P_MENU_ID
+        END AS parent_id
+    FROM menu
+),
+menu_tree AS (
+    SELECT menu_id, parent_id, menu_nm, use_yn, ORD_NO, depth,
+        CAST(menu_nm AS CHAR(2000)) AS full_path,
+        CAST( CONCAT( LPAD(COALESCE(ORD_NO, 0), 10, '0'), LPAD(menu_id, 10, '0') ) AS CHAR(2000) ) AS sort_path
+    FROM normalized
+    WHERE parent_id IS NULL
+    UNION ALL
+    SELECT n.menu_id, n.parent_id, n.menu_nm, n.use_yn, n.ORD_NO, n.depth,
+        CONCAT( t.full_path, ' > ', n.menu_nm ) AS full_path,
+        CONCAT( t.sort_path, '/', LPAD(COALESCE(n.ORD_NO, 0), 10, '0'), LPAD(n.menu_id, 10, '0') ) AS sort_path
+    FROM normalized n
+    INNER JOIN menu_tree t ON n.parent_id = t.menu_id
+)
+SELECT menu_id, parent_id, menu_nm, ORD_NO, depth, use_yn, sort_path
+FROM menu_tree
+ORDER BY sort_path;
+SQL
+)
+
+change_use_yn() {
+        local target_id="$1"
+        local target_name="$2"
+        local current_yn="$3"
+        local new_yn
+        local confirm
+        clear
+        echo "=========================================="
+        echo "              사용여부 변경"
+        echo "=========================================="
+        echo
+        printf '메뉴 : %s\n' "$target_name"
+        printf '현재 : [%s]\n' "$current_yn"
+        echo
+        echo "1) 사용함 (Y)"
+        echo "2) 사용안함 (N)"
+        echo "0) 취소"
+        echo
+        read -r -p "선택 > " yn_num < /dev/tty
+        case "$yn_num" in
+            1)
+                new_yn="Y"
+                ;;
+            2)
+                new_yn="N"
+                ;;
+            0)
+                return 1
+                ;;
+            *)
+                echo
+                echo "잘못된 선택입니다."
+                read -r -p "Enter..." < /dev/tty
+                return 1
+                ;;
+        esac
+        if [ "$current_yn" = "$new_yn" ]; then
+            echo
+            echo "현재 상태와 동일합니다."
+            read -r -p "Enter..." < /dev/tty
+            return 1
+        fi
+        echo
+        printf '%s [%s] → [%s]\n' \
+            "$target_name" "$current_yn" "$new_yn"
+        read -r -p "변경하시겠습니까? (y/N) > " confirm < /dev/tty
+        case "$confirm" in
+            y|Y)
+                ;;
+            *)
+                echo "변경을 취소했습니다."
+                read -r -p "Enter..." < /dev/tty
+                return 1
+                ;;
+        esac
+
+mysql -N -B -u "${DB_USER}" -p"${DEC_VALUE}" "${DB_NAME}" <<SQL
+UPDATE menu SET use_yn = '$new_yn' WHERE menu_id = $target_id;
+SQL
+        if [ $? -eq 0 ]; then
+            MENU_YN["$target_id"]="$new_yn"
+            echo
+            printf '[%s] → [%s] 변경되었습니다.\n' \
+                "$current_yn" "$new_yn"
+            read -r -p "Enter..." < /dev/tty
+            return 0
+        else
+            echo
+            echo "변경에 실패했습니다."
+            read -r -p "Enter..." < /dev/tty
+            return 1
+        fi
+    }
+
+    while true; do
+        clear
+        echo "=========================================="
+        echo "              대메뉴 선택"
+        echo "=========================================="
+        echo
+        num=0
+        for menu_id in "${MAIN_IDS[@]}"; do
+            num=$((num + 1))
+            #printf '%2d) %-30s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+			printf '%2d. %s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+        done
+        echo
+        echo " 0) 뒤로"
+        echo
+        read -r -p "대메뉴 선택 > " main_num < /dev/tty
+        case "$main_num" in
+            0)
+                return
+                ;;
+            *)
+                if ! [[ "$main_num" =~ ^[0-9]+$ ]] ||
+                   [ -z "${MAIN_IDS[$((main_num - 1))]}" ]; then
+                    echo
+                    echo "잘못된 선택입니다."
+                    read -r -p "Enter..." < /dev/tty
+                    continue
+
+                fi
+                main_id="${MAIN_IDS[$((main_num - 1))]}"
+                ;;
+        esac
+        while true; do
+            clear
+            echo "=========================================="
+            printf ' 대메뉴 : %s [%s]\n' "${MENU_NM[$main_id]}" "${MENU_YN[$main_id]}"
+            echo "=========================================="
+            echo
+            num=0
+            for menu_id in ${MENU_CHILDREN[$main_id]}; do
+                num=$((num + 1))
+                #printf '%2d) %-30s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+				printf '   %2d. %s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+            done
+            echo
+            echo "[U] 대메뉴 사용여부 변경"
+            echo "[0] 뒤로"
+            echo
+            read -r -p "중메뉴 선택 > " sub_num < /dev/tty
+            case "$sub_num" in
+                0)
+                    break
+                    ;;
+                u|U)
+                    change_use_yn "$main_id" "${MENU_NM[$main_id]}" "${MENU_YN[$main_id]}"
+                    continue
+                    ;;
+                *)
+                    if ! [[ "$sub_num" =~ ^[0-9]+$ ]]; then
+                        echo "잘못된 선택입니다."
+                        read -r -p "Enter..." < /dev/tty
+                        continue
+                    fi
+                    sub_id=""
+                    num=0
+                    for menu_id in ${MENU_CHILDREN[$main_id]}; do
+                        num=$((num + 1))
+                        if [ "$num" -eq "$sub_num" ]; then
+                            sub_id="$menu_id"
+                            break
+                        fi
+                    done
+                    if [ -z "$sub_id" ]; then
+                        echo
+                        echo "존재하지 않는 메뉴입니다."
+                        read -r -p "Enter..." < /dev/tty
+                        continue
+                    fi
+                    ;;
+            esac
+            while true; do
+                clear
+                echo "=========================================="
+                printf ' 대메뉴 : %s [%s]\n' "${MENU_NM[$main_id]}" "${MENU_YN[$main_id]}"
+                printf ' 중메뉴 : %s [%s]\n' "${MENU_NM[$sub_id]}" "${MENU_YN[$sub_id]}"
+                echo "=========================================="
+                echo
+                num=0
+                for menu_id in ${MENU_CHILDREN[$sub_id]}; do
+                    num=$((num + 1))
+                    #printf '%2d) %-30s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+					printf '      %2d. %s [%s]\n' "$num" "${MENU_NM[$menu_id]}" "${MENU_YN[$menu_id]}"
+                done
+                echo
+                echo "[U] 중메뉴 사용여부 변경"
+                echo "[0] 뒤로"
+                echo
+                read -r -p "소메뉴 선택 > " third_num < /dev/tty
+                case "$third_num" in
+                    0)
+                        break
+                        ;;
+                    u|U)
+                        change_use_yn "$sub_id" "${MENU_NM[$sub_id]}" "${MENU_YN[$sub_id]}"
+                        continue
+                        ;;
+                    *)
+                        if ! [[ "$third_num" =~ ^[0-9]+$ ]]; then
+                            echo "잘못된 선택입니다."
+                            read -r -p "Enter..." < /dev/tty
+                            continue
+                        fi
+                        third_id=""
+                        num=0
+                        for menu_id in ${MENU_CHILDREN[$sub_id]}; do
+                            num=$((num + 1))
+                            if [ "$num" -eq "$third_num" ]; then
+                                third_id="$menu_id"
+                                break
+                            fi
+                        done
+                        if [ -z "$third_id" ]; then
+                            echo
+                            echo "존재하지 않는 메뉴입니다."
+                            read -r -p "Enter..." < /dev/tty
+                            continue
+                        fi
+                        change_use_yn "$third_id" "${MENU_NM[$third_id]}" "${MENU_YN[$third_id]}"
+                        ;;
+                esac
+            done
+        done
+    done
+}
+
+menu_list(){
+if [ "$1" = "all" ]; then MENU_ALL=1; else MENU_ALL=0; fi
+salt=$(printf '%s' "$SERV_USER" | md5sum | cut -c1-16)
+DEC_VALUE=$(echo "$DP_ENC" | openssl enc -aes-256-cbc -a -d -S "$salt" -pbkdf2 -iter 100000 -pass pass:"$MY_USER" 2>/dev/null)
+mysql -N -B -u "${DB_USER}" -p"${DEC_VALUE}" "${DB_NAME}" <<SQL |
+WITH RECURSIVE normalized AS (
+    SELECT menu_id, menu_nm, use_yn, ORD_NO,
+        CASE
+            WHEN menu_id = menu_group_id THEN 1
+            WHEN menu_group_id IS NOT NULL
+                 AND menu_group_id <> 0 THEN 2
+            ELSE 3
+        END AS depth,
+        CASE
+            WHEN menu_id = menu_group_id THEN NULL
+            WHEN menu_group_id IS NOT NULL
+                 AND menu_group_id <> 0 THEN menu_group_id
+            ELSE P_MENU_ID
+        END AS parent_id
+    FROM menu
+),
+menu_tree AS (
+SELECT menu_id, parent_id, menu_nm, use_yn, ORD_NO, depth,
+        CAST(menu_nm AS CHAR(2000)) AS full_path,
+        CAST( CONCAT( LPAD(COALESCE(ORD_NO, 0), 10, '0'), LPAD(menu_id, 10, '0') ) AS CHAR(2000) ) AS sort_path
+    FROM normalized
+    WHERE parent_id IS NULL
+    AND ($MENU_ALL = 1 OR use_yn = 'Y')
+    UNION ALL
+    SELECT n.menu_id, n.parent_id, n.menu_nm, n.use_yn, n.ORD_NO, n.depth,
+        CONCAT( t.full_path, ' > ', n.menu_nm ) AS full_path,
+        CONCAT( t.sort_path, '/', LPAD(COALESCE(n.ORD_NO, 0), 10, '0'), LPAD(n.menu_id, 10, '0') ) AS sort_path
+    FROM normalized n
+    INNER JOIN menu_tree t ON n.parent_id = t.menu_id
+    WHERE $MENU_ALL = 1 OR ( t.use_yn = 'Y' AND n.use_yn = 'Y' )
+)
+SELECT menu_id, parent_id, menu_nm, ORD_NO,
+    CASE depth WHEN 1 THEN '대메뉴' WHEN 2 THEN '중메뉴' WHEN 3 THEN '소메뉴' ELSE CONCAT('기타(', depth, ')') END AS menu_type,
+    use_yn, full_path
+FROM menu_tree
+ORDER BY sort_path;
+SQL
+while IFS=$'\t' read -r menu_id parent_id menu_nm ord_no menu_type use_yn full_path
+do
+    case "$menu_type" in
+        대메뉴)
+            if [ -n "$first_menu" ]; then
+                printf '\n'
+                read -r -p "" < /dev/tty
+            fi
+            printf '%s [%s] (%s)\n' "$menu_nm" "$menu_type" "$use_yn"
+            first_menu=1
+            ;;
+        중메뉴)
+            printf '├─ %s [%s] (%s)\n' "$menu_nm" "$menu_type" "$use_yn"
+            ;;
+        소메뉴)
+            printf '│  ├─ %s [%s] (%s)\n' "$menu_nm" "$menu_type" "$use_yn"
+            ;;
+        *)
+            printf '└─ %s [%s] (%s)\n' "$menu_nm" "$menu_type" "$use_yn"
+            ;;
+    esac
+done
+
+}
 usage() 
 {
 echo "================================================"
@@ -1377,11 +1736,8 @@ main()
 		firewalld)
 			firewalld_setting
 			;;
-		webappsset)
-			makedir&&miso_install
-			;;
-		dbset)
-			source_sql_new
+		dbvalue)
+			db_setting_check
 			;;
 		namo)
 			editor
@@ -1397,6 +1753,9 @@ main()
 			;;
 		decode)
 			decoding $2
+			;;
+		menu)
+			menu $2
 			;;
 		 help|--help|-h)
 			usage
