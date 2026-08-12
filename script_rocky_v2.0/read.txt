@@ -90,3 +90,7 @@ check dir or file to backup function : dircheck
 2026/07/28 web_passwd (glibc 2.28)
 - miso getEncPassword.do not working 
 - input user_id web_port > passwd : user_id
+
+2026/08/12 miso_portal.sh
+- menu (f) add > print list , change menu (use_yn)
+- check 01.util_Install_latest : DP_ENC, DB_USER, DB_NAME <<  dbvalue(f) help u
