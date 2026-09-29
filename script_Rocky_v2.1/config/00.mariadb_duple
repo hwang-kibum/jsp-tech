@@ -1,0 +1,73 @@
+# ---------- 서버 정보 ----------
+DB_ACTIVE_IP="10.52.9.227"
+DB_STANDBY_IP="10.52.9.228"
+DB_PORT="3306"
+DB_owner="mysql"   #salt
+
+# ---------- SSH 접속 정보 ----------
+SSH_USER="jsp"
+SSH_PORT="22"
+SSH_KEY="/root/.ssh/id_rsa"
+
+# ---------- MariaDB 관리 계정 ----------
+DB_ROOT_PASSWORD_ENC="CHANGE_ME"
+REPL_USER="repl"   #pass
+REPL_PASSWORD_ENC="CHANGE_ME"
+
+# ---------- 경로 설정 ----------
+BASEDIR="/data/mariadb"
+DATADIR="/data/mariadbData"
+DATADIR_OLD_BACKUP="/data/mariadbData_old"
+BACKUP_DIR="/data/backup"
+
+# ---------- 서비스 정보 ----------
+DB_SERVICE_NAME="mariadb"
+
+# ---------- Replication 옵션 ----------
+GTID_MODE="slave_pos"          # MASTER_USE_GTID 값
+
+# ---------- VIP 옵션 ----------
+VIP_MODE="yes"           # yes 여야 SUB_IP 기능 동작
+SUB_IP="10.52.9.230"
+SUB_IP_CIDR="24"
+SUB_IP_DEV=""           # 비우면 자동 탐지
+AUTO_START_MONITOR="yes"
+
+# ---------- 헬스체크 주기 ----------
+HEALTH_INTERVAL="5"           # 체크 주기(초)
+HEALTH_FAIL_THRESHOLD="6"      # 연속 실패 임계값 (10초 x 6 = 60초 지속 시 장애 판정)
+HEALTH_TIMEOUT="5"             # 개별 체크 타임아웃(초)
+FAILOVER_MODE="2"
+
+# ---------- Fail-over 모드 ----------
+#
+# 헬스체크 항목은 모든 모드가 동일하다.
+#   - 포트          : Active 의 3306 포트가 열려 있는가
+#   - 프로세스      : mysqld 가 살아 있는가 (SSH 경유)
+#   - root 접속     : root 계정으로 SELECT 1 이 되는가
+#   - repl 접속     : repl 계정으로 접속이 되는가
+#     (두 계정 중 하나라도 접속되면 DB 는 살아있는 것으로 본다.
+#      한쪽 계정 비밀번호만 바뀐 경우 오탐으로 승격되는 것을 막는다.)
+#
+# 모드는 "장애 감지 후 승격을 진행할지" 만 결정한다.
+#
+#  1 = 임계값 도달 시 판정 구분 없이 자동 승격
+#      전환이 가장 빠르지만, DEGRADED(재기동 중 등)에서도
+#      승격되므로 오탐 가능성이 있다.
+#
+#  2 = 실제 장애로 확인된 경우에만 자동 승격  (권장)
+#        - SERVER_DOWN : 서버 자체가 내려감      -> 승격
+#        - DB_DOWN     : mysqld 만 죽음          -> 승격
+#        - DEGRADED    : 응답만 없음(기동 중 등) -> 보류
+#
+#  3 = 자동 승격 안 함  (기본값)
+#      장애를 감지해도 로그만 남긴다.
+#      승격은 아래 명령으로 사람이 직접 실행한다.
+#        ./02.install_replication.sh promote
+#
+# ---------- 승격 상태 (스크립트가 자동 기록) ----------
+# 승격이 발생하면 아래 값이 자동으로 채워진다.
+# IP 는 바꾸지 않고 상태값만 남기며, 원복(failback) 시 참조한다.
+#   active-temporary : 원래 Standby 였으나 장애로 승격된 상태
+ROLE_STATE=""
+PROMOTED_AT=""

@@ -1,0 +1,64 @@
+############################################
+#create user
+SU_USER=jsp
+SERV_USER=login
+MY_USER=mysql
+
+#DATE
+DATE=$(date "+%Y-%m-%d")
+
+#Global variable
+install_path=/data
+local_backup_path=/backup
+###########################################
+DP_ENC=
+DRP_ENC=
+RP_ENC=
+############필요시 수정 
+miso_path="${install_path}/miso"
+mlogs_path="${install_path}/logs"
+tomcat_path="${install_path}/tomcat"
+tlog_path="${install_path}/logs/tomcat"
+db_path="${install_path}/mariadb"
+dbdata_path="${install_path}/mariadbData"
+dlog_path="${install_path}/logs/mariadb"
+###########################################
+HOST_IP=127.0.0.1
+WAS_IP=127.0.0.1
+DB_IP=127.0.0.1
+DB_PORT=3306
+DB_USER=jsp
+DB_NAME=miso
+############################################
+#jdk variable
+JAVAFILE=jdk-25_linux-x64_bin.tar.gz
+############################################
+#tomcat variable
+TOMCATFILE=apache-tomcat-11.0.25.tar.gz
+############################################
+#mariadb variable
+DBFILE=mariadb-11.4.13-linux-systemd-x86_64.tar.gz
+###########################################
+#mysql variable
+#DBFILE_mysql=mysql-9.7.1-linux-glibc2.28-x86_64.tar.xz
+###########################################
+#webapps variable
+webapps=miso.portal.web-2.0.war
+#webapps=ROOT.tar.gz
+#init_sql=miso_init.sql
+#alter_sql=
+#################progress#################
+c_db_install=0
+c_tomcat_install=0
+c_makedir=0
+c_miso_install=0
+c_DB_RUN=0
+c_source_sql_new=0
+c_firewalld_setting=0
+c_tomcat_RUN=0
+###########################################
+### read
+:<<END
+find . -type f -exec sed -i 's/\r//g' {} \;
+chmod +x *.sh
+END
