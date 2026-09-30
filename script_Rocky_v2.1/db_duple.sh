@@ -87,7 +87,7 @@ load_config() {
 failover_mode_desc() {
     case "$FAILOVER_MODE" in
         1) echo "모드 1 - 장애 감지 시 판정 구분 없이 자동 승격" ;;
-        2) echo "모드 2 - 실제 장애로 확인된 경우만 자동 승격" ;;
+        2) echo "모드 2 - 서버(ping)와 DB(접속)가 모두 실패할 때만 자동 승격" ;;
         3) echo "모드 3 - 자동 승격 안 함 (수동 승격만)" ;;
     esac
 }
@@ -98,7 +98,7 @@ should_auto_promote() {
             return 0
             ;;
         2)
-            if [ "$HC_VERDICT" == "SERVER_DOWN" ] || [ "$HC_VERDICT" == "DB_DOWN" ]; then
+            if [ "$HC_PING" != "OK" ] && [ "$HC_QUERY_REPL" != "OK" ]; then
                 return 0
             fi
             return 1
@@ -665,6 +665,20 @@ EOF
     log "[WARN] 상대 서버에서도 동일하게 설정해야 합니다 (해당 서버에서 이 스크립트 실행)."
 }
 
+peer_is_reachable() {
+    if ! ping -c 2 -W 1 "$PEER_IP" >/dev/null 2>&1; then
+        log "[WARN] 상대 서버(${PEER_IP})에 ping 이 닿지 않습니다."
+        return 1
+    fi
+
+    if ! timeout 5 bash -c "echo > /dev/tcp/${PEER_IP}/${SSH_PORT}" 2>/dev/null; then
+        log "[WARN] 상대 서버(${PEER_IP})의 SSH 포트(${SSH_PORT})가 닫혀 있습니다."
+        return 1
+    fi
+
+    return 0
+}
+
 check_ssh_exchange() {
     local my_ip
     my_ip="$(hostname -I | awk '{print $1}')"
@@ -678,12 +692,44 @@ check_ssh_exchange() {
         return
     fi
 
-    log "[WARN] SSH 키교환이 되어 있지 않습니다."
+    log "SSH 키교환이 아직 되어 있지 않습니다."
 
-    read -r -p "지금 자동으로 SSH 키교환을 시도할까요? (ssh-keygen/ssh-copy-id 진행, 원격 비밀번호 입력 필요) (y/n): " DO_SSH_EXCHANGE
+    if ! peer_is_reachable; then
+        cat <<EOF
+
+=====================================================
+ 상대 서버(${PEER_IP})에 연결할 수 없어 키교환을 건너뜁니다.
+
+ 아직 상대 서버를 설치하지 않았다면 정상적인 상황입니다.
+ 상대 서버 설치가 끝난 뒤 이 서버에서 스크립트를 다시
+ 실행하면 키교환이 이어서 처리됩니다.
+
+ 지금은 이 서버의 준비 작업만 계속 진행합니다.
+=====================================================
+
+EOF
+        SSH_EXCHANGE_SKIPPED=1
+        return 0
+    fi
+
+    cat <<EOF
+
+=====================================================
+ 상대 서버(${PEER_IP})로 SSH 공개키를 등록합니다.
+
+ 상대 서버에 ${SSH_USER} 계정이 이미 있어야 합니다.
+ (상대 서버에서 이 스크립트를 한 번이라도 실행했다면 존재)
+
+ 아직 상대 서버를 설치하지 않았다면 n 을 선택하세요.
+ 나중에 다시 실행할 때 자동으로 처리됩니다.
+=====================================================
+
+EOF
+    read -r -p "지금 키교환을 진행할까요? (${SSH_USER} 비밀번호 입력 필요) (y/n): " DO_SSH_EXCHANGE
     if [[ "$DO_SSH_EXCHANGE" != "y" && "$DO_SSH_EXCHANGE" != "Y" ]]; then
-        print_ssh_exchange_guide "$my_ip"
-        exit 1
+        log "키교환을 건너뜁니다. 상대 서버 설치 후 이 스크립트를 다시 실행하세요."
+        SSH_EXCHANGE_SKIPPED=1
+        return 0
     fi
 
     if [ ! -f "$SSH_KEY" ]; then
@@ -701,9 +747,9 @@ check_ssh_exchange() {
         log "SSH 키교환 자동 처리 완료"
         check_remote_backup_dir_writable
     else
-        log "[ERROR] 자동 키교환에 실패했습니다."
-        print_ssh_exchange_guide "$my_ip"
-        exit 1
+        log "[WARN] 키교환에 실패했습니다. 상대 서버에 ${SSH_USER} 계정이 없을 수 있습니다."
+        log "[WARN] 상대 서버 설치 후 이 스크립트를 다시 실행하면 처리됩니다."
+        SSH_EXCHANGE_SKIPPED=1
     fi
 }
 
@@ -951,6 +997,25 @@ setup_active() {
     log "[ACTIVE] 백업 디렉토리 소유권을 ${SSH_USER}로 변경"
     chown -R "${SSH_USER}:${SSH_USER}" "${BACKUP_TARGET_DIR}"
 
+    if [ "${SSH_EXCHANGE_SKIPPED:-0}" == "1" ]; then
+        log "[WARN] SSH 키교환이 되어 있지 않아 백업을 전송할 수 없습니다."
+        cat <<EOF
+
+=====================================================
+ 백업은 생성되었습니다: ${BACKUP_TARGET_DIR}
+ 다만 아직 ${PEER_IP} 로 전송하지 못했습니다.
+
+ 상대 서버(${PEER_IP})에서 설치를 먼저 진행한 뒤,
+ 이 서버에서 스크립트를 다시 실행하면 키교환과 전송이
+ 함께 처리됩니다.
+
+   ./$(basename "$0")
+=====================================================
+
+EOF
+        return 0
+    fi
+
     log "[ACTIVE] Standby(${PEER_IP})로 백업 자동 전송 시작"
     if rsync -avP -e "ssh -i ${SSH_KEY} -p ${SSH_PORT}" \
             "${BACKUP_TARGET_DIR}" "${SSH_USER}@${PEER_IP}:${BACKUP_DIR}/"; then
@@ -1077,7 +1142,7 @@ setup_standby() {
     local slave_out
     slave_out="$("${MYSQL_BIN}" -u"${DB_ROOT_USER}" -p"${DB_ROOT_PASSWORD}" -e "SHOW SLAVE STATUS\G" 2>/dev/null)"
     echo "$slave_out" \
-        | grep -E "Slave_IO_Running|Slave_SQL_Running|Last_IO_Error|Last_SQL_Error|Seconds_Behind_Master" \
+        | grep -E "Slave_IO_Running:|Slave_SQL_Running:|Last_IO_Error:|Last_SQL_Error:|Seconds_Behind_Master:" \
         | while IFS= read -r l; do colorize_slave_status "$l"; done
 
     if ! diagnose_slave_error "$slave_out"; then
@@ -1446,6 +1511,11 @@ print_role_banner() {
             echo -e "  ${COLOR_YELLOW}상태: 원복 진행 중 - 데이터를 따라잡는 중입니다.${COLOR_RESET}"
             echo -e "  ${COLOR_YELLOW}      지연이 0 이 되면 rollback-switch 를 실행하세요.${COLOR_RESET}"
             ;;
+        demoted)
+            echo -e "  ${COLOR_RED}상태: 장애로 강등된 서버입니다. 상대가 서비스 중입니다.${COLOR_RESET}"
+            echo -e "  ${COLOR_RED}      VIP 를 올리지 않으며, 원복 절차가 필요합니다.${COLOR_RESET}"
+            echo -e "  ${COLOR_RED}      상대에서 rollback-send → 이 서버에서 rollback-prepare${COLOR_RESET}"
+            ;;
     esac
 
     if [ "$EFFECTIVE_ROLE" == "ORPHANED" ]; then
@@ -1462,6 +1532,45 @@ print_role_banner() {
     echo ""
 }
 
+print_peer_status() {
+    local peer
+    if [ "$CURRENT_IP" == "$DB_ACTIVE_IP" ]; then
+        peer="$DB_STANDBY_IP"
+    else
+        peer="$DB_ACTIVE_IP"
+    fi
+
+    MYSQL_BIN="${MYSQL_BIN:-$(resolve_bin mysql)}"
+    REPL_PASSWORD="$(decrypt_password "${REPL_PASSWORD_ENC}")"
+
+    local p_ping="FAIL" p_port="FAIL" p_repl="FAIL"
+
+    ping -c 2 -W 1 "$peer" >/dev/null 2>&1 && p_ping="OK"
+
+    if [ "$p_ping" == "OK" ]; then
+        timeout 5 bash -c "echo > /dev/tcp/${peer}/${DB_PORT}" 2>/dev/null && p_port="OK"
+
+        if [ -n "$REPL_PASSWORD" ]; then
+            timeout 5 "${MYSQL_BIN}" -h"${peer}" -P"${DB_PORT}" \
+                -u"${REPL_USER}" -p"${REPL_PASSWORD}" --ssl-verify-server-cert=0 \
+                -N -B -e "DO 1;" >/dev/null 2>&1 && p_repl="OK"
+        else
+            p_repl="확인불가"
+        fi
+    fi
+
+    local c1="$COLOR_RED"; [ "$p_ping" == "OK" ] && c1="$COLOR_GREEN"
+    local c2="$COLOR_RED"; [ "$p_port" == "OK" ] && c2="$COLOR_GREEN"
+    local c3="$COLOR_RED"; [ "$p_repl" == "OK" ] && c3="$COLOR_GREEN"
+    [ "$p_repl" == "확인불가" ] && c3="$COLOR_YELLOW"
+
+    echo -e "${COLOR_BLUE}=== 상대 서버 (${peer}) ===${COLOR_RESET}"
+    echo -e "  ping             : ${c1}${p_ping}${COLOR_RESET}"
+    echo -e "  포트(${DB_PORT})       : ${c2}${p_port}${COLOR_RESET}"
+    echo -e "  ${REPL_USER} 접속        : ${c3}${p_repl}${COLOR_RESET}"
+    echo ""
+}
+
 run_status_check() {
     load_config
     check_dependencies
@@ -1470,11 +1579,15 @@ run_status_check() {
     detect_role
     detect_effective_role
     print_role_banner "$ROLE"
+    print_peer_status
 
     if [ "$EFFECTIVE_ROLE" == "ACTIVE" ]; then
-        echo -e "${COLOR_BLUE}=== ACTIVE Replication 상태 ===${COLOR_RESET}"
-        "${MYSQL_BIN}" -u"${DB_ROOT_USER}" -p"${DB_ROOT_PASSWORD}" -e "SHOW MASTER STATUS\G" 2>/dev/null \
-            | grep -E "File|Position"
+        echo -e "${COLOR_BLUE}=== 복제 위치 (GTID) ===${COLOR_RESET}"
+        local cur_pos binlog_pos
+        cur_pos="$(mysql_root_out "SELECT @@GLOBAL.gtid_current_pos;" | tail -1)"
+        binlog_pos="$(mysql_root_out "SELECT @@GLOBAL.gtid_binlog_pos;" | tail -1)"
+        echo "         현재 위치 : ${cur_pos:-없음}"
+        echo "       binlog 기록 : ${binlog_pos:-없음 (아직 쓰기 없음)}"
     else
         echo -e "${COLOR_BLUE}=== STANDBY(SLAVE) Replication 상태 ===${COLOR_RESET}"
         local output
@@ -1485,7 +1598,17 @@ run_status_check() {
         fi
 
         colorize_slave_status "$(echo "$output" \
-            | grep -E "Slave_IO_Running|Slave_SQL_Running|Last_IO_Error|Last_SQL_Error|Seconds_Behind_Master")"
+            | grep -E "Slave_IO_Running:|Slave_SQL_Running:|Last_IO_Error:|Last_SQL_Error:|Seconds_Behind_Master:")"
+
+        echo ""
+        echo -e "${COLOR_BLUE}=== 복제 위치 (GTID) ===${COLOR_RESET}"
+        local gtid_io gtid_cur
+        gtid_io="$(echo "$output" | grep -m1 "Gtid_IO_Pos:" | sed 's/.*Gtid_IO_Pos:[[:space:]]*//')"
+        gtid_cur="$(mysql_root_out "SELECT @@GLOBAL.gtid_current_pos;" | tail -1)"
+        echo "         받은 위치(IO) : ${gtid_io:-없음}"
+        echo "       적용 완료 위치 : ${gtid_cur:-없음}"
+
+        echo ""
         diagnose_slave_error "$output" || exit 1
     fi
 }
@@ -1589,6 +1712,18 @@ verify_monitor_role() {
         exit 1
     fi
 
+    if [ "$ROLE_STATE" == "active-temporary" ] && [ "$MONITOR_ROLE" == "STANDBY" ]; then
+        log "ROLE_STATE=active-temporary - 이 서버는 승격되어 현재 Active 로 동작 중입니다."
+        log "config 상으로는 Standby 이지만 Active 자가 감시로 동작합니다."
+        MONITOR_ROLE="ACTIVE"
+    fi
+
+    if [ "$CURRENT_IP" == "$DB_ACTIVE_IP" ]; then
+        MONITOR_PEER_IP="$DB_STANDBY_IP"
+    else
+        MONITOR_PEER_IP="$DB_ACTIVE_IP"
+    fi
+
     if [ "$MONITOR_ROLE" == "ACTIVE" ] && ! vip_enabled; then
         log "[ERROR] 이 서버는 Active 이며, VIP_MODE 가 꺼져 있어 감시할 대상이 없습니다."
         log "[ERROR] Active 자가 감시는 VIP_MODE=yes 일 때만 의미가 있습니다 (SUB_IP 자가 회수)."
@@ -1648,22 +1783,72 @@ peer_is_active() {
 }
 
 active_startup_vip_check() {
-    log "시작 전 상대 서버(${DB_STANDBY_IP}) 상태 확인"
+    if [ "$ROLE_STATE" == "demoted" ]; then
+        log "[WARN] 이 서버는 이전에 강등되었습니다 (ROLE_STATE=demoted)."
+        cat <<EOF
 
-    if peer_is_active "$DB_STANDBY_IP"; then
-        log "[ERROR] 상대 서버(${DB_STANDBY_IP})가 현재 Active 로 동작 중입니다."
+=====================================================
+ 이 서버는 장애로 강등된 뒤 아직 복구되지 않았습니다.
+ 상대 서버가 현재 서비스 중일 수 있으므로 VIP 를
+ 올리지 않습니다.
+
+ 원복 절차를 진행하세요.
+
+   1) 상대 서버에서
+        $0 rollback-send
+
+   2) 이 서버에서
+        $0 rollback-prepare
+        $0 status
+        $0 rollback-switch
+=====================================================
+
+EOF
+        return 1
+    fi
+
+    if [ "$ROLE_STATE" == "active-temporary" ]; then
+        log "ROLE_STATE=active-temporary - 승격 절차를 정상적으로 거친 서버입니다."
+        log "상대 확인 없이 SUB_IP 를 부여합니다 (승격 시 이미 차단·회수 확인 완료)."
+
+        if ! check_sub_ip_conflict; then
+            log "[ERROR] SUB_IP(${SUB_IP})가 네트워크에서 응답하고 있어 부여하지 않습니다."
+            return 1
+        fi
+        return 0
+    fi
+
+    log "시작 전 상대 서버(${MONITOR_PEER_IP}) 상태 확인"
+
+    local tries=0
+    local max_tries=6
+    while [ "$tries" -lt "$max_tries" ]; do
+        if peer_is_active "$MONITOR_PEER_IP"; then
+            break
+        fi
+        [ "$PEER_STATE" != "UNKNOWN" ] && break
+
+        tries=$((tries + 1))
+        if [ "$tries" -lt "$max_tries" ]; then
+            log "상대 서버 응답 없음 - 부팅 중일 수 있어 10초 후 재확인 (${tries}/${max_tries})"
+            sleep 10
+        fi
+    done
+
+    if peer_is_active "$MONITOR_PEER_IP"; then
+        log "[ERROR] 상대 서버(${MONITOR_PEER_IP})가 현재 Active 로 동작 중입니다."
         cat <<EOF
 
 =====================================================
  이 서버는 config 상 Active 이지만, 그동안 장애로
- ${DB_STANDBY_IP} 가 승격되어 서비스 중입니다.
+ ${MONITOR_PEER_IP} 가 승격되어 서비스 중입니다.
 
  지금 SUB_IP 를 부여하면 IP 가 중복되어 네트워크가
  꼬이므로 부여하지 않고 감시를 종료합니다.
 
  원래 구성으로 되돌리려면 아래 순서로 진행하세요.
 
-   1) ${DB_STANDBY_IP} 에서
+   1) ${MONITOR_PEER_IP} 에서
         $0 rollback-send
 
    2) 이 서버에서
@@ -1692,80 +1877,131 @@ EOF
     return 0
 }
 
+should_release_vip_on_db_failure() {
+    case "$FAILOVER_MODE" in
+        1)
+            return 0
+            ;;
+        2)
+            log "모드 2 는 서버까지 죽어야 넘기므로 SUB_IP 를 유지합니다."
+            log "DB 만 죽은 상태이며, 이 서버가 계속 SUB_IP 를 보유합니다."
+            return 1
+            ;;
+        3)
+            log "모드 3 은 자동 전환을 하지 않으므로 SUB_IP 를 유지합니다."
+            return 1
+            ;;
+    esac
+    return 1
+}
+
 run_active_monitor_loop() {
     local fail_count=0
+    local last_state=""
+    local quiet_count=0
+    local quiet_every=$(( 300 / HEALTH_INTERVAL ))
+    [ "$quiet_every" -lt 1 ] && quiet_every=1
     set +e
 
-    log "Active 자가 감시 시작 (주기 ${HEALTH_INTERVAL}초, 연속 ${HEALTH_FAIL_THRESHOLD}회 실패 시 SUB_IP 회수)"
-    log "대상 SUB_IP: ${SUB_IP}/${SUB_IP_CIDR}"
+    log "Active 자가 감시 시작 (주기 ${HEALTH_INTERVAL}초, 연속 ${HEALTH_FAIL_THRESHOLD}회 실패 시 판단)"
+    log "대상 SUB_IP: ${SUB_IP}/${SUB_IP_CIDR} · $(failover_mode_desc)"
 
-    if ! active_startup_vip_check; then
-        log "Active 자가 감시를 시작하지 않고 종료합니다."
-        rm -f "$PID_FILE"
-        exit 0
+    local vip_state=""
+    local vip_quiet=0
+    local vip_recheck=$(( 60 / HEALTH_INTERVAL ))
+    [ "$vip_recheck" -lt 1 ] && vip_recheck=1
+
+    if active_startup_vip_check; then
+        attach_sub_ip || log "[WARN] 시작 시점 SUB_IP 부여에 실패했습니다."
+        vip_state="HELD"
+    else
+        log "SUB_IP 를 부여하지 않고 감시만 계속합니다."
+        vip_state="BLOCKED"
     fi
-
-    attach_sub_ip || log "[WARN] 시작 시점 SUB_IP 부여에 실패했습니다."
 
     while true; do
         if check_local_db_alive; then
-            if [ "$fail_count" -gt 0 ]; then
-                log "로컬 MariaDB 정상 복구됨 (직전 연속 실패 ${fail_count}회 초기화)"
-                fail_count=0
+            if [ "$last_state" != "UP" ]; then
+                [ -n "$last_state" ] && log "로컬 MariaDB 정상 복구됨 (직전 연속 실패 ${fail_count}회)"
+                last_state="UP"
+                quiet_count=0
             fi
+            fail_count=0
 
-            if ! sub_ip_is_assigned; then
-                log "[WARN] DB 는 정상인데 SUB_IP 가 내려가 있습니다. 재부여 전 상태를 확인합니다."
-                if peer_is_active "$DB_STANDBY_IP"; then
-                    log "[ERROR] 상대 서버가 Active 로 동작 중이라 SUB_IP 를 부여하지 않습니다."
-                    log "[ERROR] 원복 절차(rollback-send/prepare/switch)가 필요합니다. 감시를 종료합니다."
-                    rm -f "$PID_FILE"
-                    exit 0
+            if sub_ip_is_assigned; then
+                if [ "$vip_state" != "HELD" ]; then
+                    log "SUB_IP(${SUB_IP}) 보유 확인"
+                    vip_state="HELD"
+                    vip_quiet=0
                 fi
-                if check_sub_ip_conflict; then
-                    attach_sub_ip || true
-                else
-                    log "[ERROR] SUB_IP 가 네트워크에서 사용 중이라 부여하지 않습니다."
+            else
+                vip_quiet=$((vip_quiet + 1))
+
+                if [ "$vip_state" == "HELD" ] || [ $((vip_quiet % vip_recheck)) -eq 1 ]; then
+                    [ "$vip_state" == "HELD" ] && \
+                        log "[WARN] DB 는 정상인데 SUB_IP 가 내려가 있습니다. 재부여를 검토합니다."
+
+                    if peer_is_active "$MONITOR_PEER_IP"; then
+                        if [ "$vip_state" != "BLOCKED_PEER" ]; then
+                            log "[ERROR] 상대 서버(${MONITOR_PEER_IP})가 Active 로 동작 중이라 SUB_IP 를 부여하지 않습니다."
+                            log "[ERROR] 원복 절차(rollback-send / rollback-prepare / rollback-switch)가 필요합니다."
+                            log "[ERROR] 이후 같은 상태가 이어지면 로그를 남기지 않습니다."
+                            vip_state="BLOCKED_PEER"
+                            vip_quiet=0
+                        fi
+                    elif check_sub_ip_conflict; then
+                        if attach_sub_ip; then
+                            vip_state="HELD"
+                            vip_quiet=0
+                        else
+                            vip_state="BLOCKED"
+                        fi
+                    else
+                        if [ "$vip_state" != "BLOCKED_CONFLICT" ]; then
+                            log "[ERROR] SUB_IP 가 네트워크에서 사용 중이라 부여하지 않습니다."
+                            vip_state="BLOCKED_CONFLICT"
+                            vip_quiet=0
+                        fi
+                    fi
                 fi
             fi
         else
             fail_count=$((fail_count + 1))
-            log "[WARN] 로컬 MariaDB 이상 감지 - 연속 ${fail_count}/${HEALTH_FAIL_THRESHOLD}회"
 
-            if [ "$fail_count" -ge "$HEALTH_FAIL_THRESHOLD" ]; then
+            if [ "$fail_count" -lt "$HEALTH_FAIL_THRESHOLD" ]; then
+                log "[WARN] 로컬 MariaDB 이상 감지 - 연속 ${fail_count}/${HEALTH_FAIL_THRESHOLD}회"
+            elif [ "$last_state" != "DOWN" ]; then
+                last_state="DOWN"
+                quiet_count=0
                 log "[ERROR] 연속 ${fail_count}회 실패 - 로컬 MariaDB 장애로 판정합니다."
 
-                if sub_ip_is_assigned; then
-                    log "[ERROR] SUB_IP(${SUB_IP})를 회수합니다 (Standby 승격 시 IP 충돌 방지)."
-                    detach_sub_ip
-                    log "SUB_IP 회수 완료."
-                else
-                    log "SUB_IP 가 이미 내려가 있어 회수할 것이 없습니다."
+                if should_release_vip_on_db_failure; then
+                    if sub_ip_is_assigned; then
+                        log "[ERROR] SUB_IP(${SUB_IP})를 회수합니다 (Standby 승격 시 IP 충돌 방지)."
+                        detach_sub_ip
+                        log "SUB_IP 회수 완료."
+                    else
+                        log "SUB_IP 가 이미 내려가 있어 회수할 것이 없습니다."
+                    fi
                 fi
 
                 cat <<EOF
 
 =====================================================
- Active 자가 감시를 종료합니다.
+ 로컬 MariaDB 장애가 지속되고 있습니다.
 
- 이 서버의 MariaDB 가 정상화되지 않아 더 이상 감시할
- 의미가 없습니다. 로그가 계속 쌓이는 것을 막기 위해
- 서비스를 종료합니다.
+ 감시는 계속하며, DB 가 복구되면 자동으로 정상 처리됩니다.
 
- 조치 후 아래로 다시 시작하세요.
-
-   1) MariaDB 상태 확인
-        systemctl status ${DB_SERVICE_NAME}
-        tail -50 ${ERROR_LOG}
-
-   2) 정상화 후 감시 재시작
-        systemctl start ${SERVICE_NAME}
+   상태 확인 : systemctl status ${DB_SERVICE_NAME}
+   에러 로그 : tail -50 ${ERROR_LOG}
 =====================================================
 
 EOF
-                log "Active 자가 감시 종료"
-                rm -f "$PID_FILE"
-                exit 0
+            else
+                quiet_count=$((quiet_count + 1))
+                if [ $((quiet_count % quiet_every)) -eq 0 ]; then
+                    log "[WARN] 로컬 MariaDB 장애 지속 중 (약 $(( quiet_count * HEALTH_INTERVAL / 60 ))분 경과)"
+                fi
             fi
         fi
 
@@ -1885,84 +2121,90 @@ run_check_once() {
 
 run_monitor_loop() {
     local fail_count=0
-
+    local last_state=""
+    local last_verdict=""
+    local quiet_count=0
+    local quiet_every=$(( 300 / HEALTH_INTERVAL ))
+    [ "$quiet_every" -lt 1 ] && quiet_every=1
     set +e
 
     log "감시 시작 (주기 ${HEALTH_INTERVAL}초, 연속 ${HEALTH_FAIL_THRESHOLD}회 실패 시 장애 판정)"
+    log "$(failover_mode_desc)"
 
     while true; do
         run_health_check
 
-        local all_failed=0
-        if [ "$HC_PING" != "OK" ] && [ "$HC_PORT" == "FAIL" ] \
-           && [ "$HC_QUERY_REPL" == "FAIL" ]; then
-            all_failed=1
-        fi
-
         local detail="[ping:${HC_PING} 포트:${HC_PORT} ${REPL_USER}:${HC_QUERY_REPL}]"
 
-        if [ "$all_failed" -eq 1 ]; then
-            fail_count=$((fail_count + 1))
+        if [ "$HC_VERDICT" == "HEALTHY" ]; then
+            if [ "$last_state" != "UP" ]; then
+                [ -n "$last_state" ] && log "Active 정상 복구됨 (직전 연속 실패 ${fail_count}회)"
+                last_state="UP"
+                last_verdict=""
+                quiet_count=0
+            fi
+            fail_count=0
+            sleep "$HEALTH_INTERVAL"
+            continue
+        fi
+
+        fail_count=$((fail_count + 1))
+
+        if [ "$fail_count" -lt "$HEALTH_FAIL_THRESHOLD" ]; then
             log "[WARN] Active 장애 감지 (${HC_VERDICT}) - 연속 ${fail_count}/${HEALTH_FAIL_THRESHOLD}회 ${detail}"
 
-            if [ "$fail_count" -ge "$HEALTH_FAIL_THRESHOLD" ]; then
-                log "[ERROR] 연속 ${fail_count}회 실패 - Active 장애로 판정합니다 (판정: ${HC_VERDICT})"
+        elif [ "$last_state" != "DOWN" ] || [ "$last_verdict" != "$HC_VERDICT" ]; then
+            if [ "$last_state" == "DOWN" ]; then
+                log "[ERROR] 장애 판정이 바뀌었습니다: ${last_verdict} → ${HC_VERDICT} ${detail}"
+                log "[ERROR] 승격 조건을 다시 확인합니다."
+            else
+                log "[ERROR] 연속 ${fail_count}회 실패 - Active 장애로 판정합니다 (판정: ${HC_VERDICT}) ${detail}"
+            fi
+            last_state="DOWN"
+            last_verdict="$HC_VERDICT"
+            quiet_count=0
 
-                if should_auto_promote; then
-                    log "[ERROR] 자동 승격을 시작합니다 ($(failover_mode_desc))"
-                    rm -f "$PID_FILE"
-                    PROMOTE_TRIGGER="auto"
-                    execute_promotion
-                    log "자동 승격 완료 - 모니터링을 종료합니다."
-                    exit 0
-                fi
+            if should_auto_promote; then
+                log "[ERROR] 자동 승격을 시작합니다 ($(failover_mode_desc))"
+                PROMOTE_TRIGGER="auto"
+                execute_promotion
 
-                if [ "$FAILOVER_MODE" == "3" ]; then
-                    log "[ERROR] 자동 승격이 꺼져 있습니다 (모드 3)."
-                else
-                    log "[WARN] 판정(${HC_VERDICT})은 실제 장애로 단정할 수 없어 승격을 보류합니다."
-                fi
-
-                cat <<EOF
-
-=====================================================
- Active 감시를 종료합니다.
-
- 장애는 감지되었으나 자동 승격을 수행하지 않았습니다.
- 로그가 계속 쌓이는 것을 막기 위해 서비스를 종료합니다.
-
- 판정: ${HC_VERDICT}
-
- 조치 후 아래로 진행하세요.
-
-   1) 상태 확인
-        $0 check
-
-   2) 승격이 필요하면
-        $0 promote
-
-   3) Active 복구 후 감시 재시작
-        systemctl start ${SERVICE_NAME}
-=====================================================
-
-EOF
-                log "Active 감시 종료"
-                rm -f "$PID_FILE"
+                log "승격이 끝났으므로 이제 이 서버가 Active 입니다."
+                log "Active 자가 감시로 전환합니다 (SUB_IP 관리)."
+                MONITOR_ROLE="ACTIVE"
+                ROLE_STATE="active-temporary"
+                run_active_monitor_loop
                 exit 0
             fi
 
-        elif [ "$HC_VERDICT" == "HEALTHY" ]; then
-            if [ "$fail_count" -gt 0 ]; then
-                log "Active 정상 복구됨 (직전 연속 실패 ${fail_count}회 초기화)"
+            if [ "$FAILOVER_MODE" == "3" ]; then
+                log "[ERROR] 자동 승격이 꺼져 있습니다 (모드 3)."
+            else
+                log "[WARN] 모드 2 는 서버(ping)와 DB 가 모두 실패할 때만 승격합니다."
+                log "[WARN] 현재 [ping:${HC_PING} ${REPL_USER}:${HC_QUERY_REPL}] 이므로 승격을 보류합니다."
             fi
-            fail_count=0
 
+            cat <<EOF
+
+=====================================================
+ Active 장애가 지속되고 있으나 자동 승격은 하지 않았습니다.
+
+ 감시는 계속하며, Active 가 복구되면 자동으로 정상 처리됩니다.
+
+ 판정: ${HC_VERDICT}
+
+ 승격이 필요하면 이 서버에서 직접 실행하세요.
+
+   $0 check
+   $0 promote
+=====================================================
+
+EOF
         else
-            if [ "$fail_count" -gt 0 ]; then
-                log "일부 항목만 실패하여 연속 실패 카운트를 초기화합니다 (직전 ${fail_count}회)"
-                fail_count=0
+            quiet_count=$((quiet_count + 1))
+            if [ $((quiet_count % quiet_every)) -eq 0 ]; then
+                log "[WARN] Active 장애 지속 중 (${HC_VERDICT}, 약 $(( quiet_count * HEALTH_INTERVAL / 60 ))분 경과) ${detail}"
             fi
-            log "[WARN] Active 일부 항목 이상 (${HC_VERDICT}) - 승격 카운트에는 반영하지 않음 ${detail}"
         fi
 
         sleep "$HEALTH_INTERVAL"
@@ -2076,6 +2318,34 @@ set_role_state() {
     fi
 
     log "역할 상태 기록: ROLE_STATE=${state}"
+}
+
+mark_peer_demoted() {
+    local peer="$1"
+
+    if ! timeout 10 ssh -o BatchMode=yes -o ConnectTimeout=5 \
+            -i "$SSH_KEY" -p "$SSH_PORT" "${SSH_USER}@${peer}" "exit" 2>/dev/null; then
+        log "[WARN] ${peer} 에 접속할 수 없어 강등 사실을 기록하지 못했습니다."
+        log "[WARN] 해당 서버가 단독으로 부팅되면 VIP 를 잡을 수 있으니 주의하세요."
+        return 1
+    fi
+
+    local peer_cfg="${SCRIPT_DIR}/config/$(basename "$CONFIG_FILE")"
+
+    timeout 15 ssh -o BatchMode=yes -o ConnectTimeout=5 \
+        -i "$SSH_KEY" -p "$SSH_PORT" "${SSH_USER}@${peer}" \
+        "f='${peer_cfg}'; [ -f \"\$f\" ] || exit 1; \
+         if grep -q '^ROLE_STATE=' \"\$f\"; then \
+            sudo -n sed -i 's#^ROLE_STATE=.*#ROLE_STATE=\"demoted\"#' \"\$f\"; \
+         else \
+            echo 'ROLE_STATE=\"demoted\"' | sudo -n tee -a \"\$f\" >/dev/null; \
+         fi" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        log "${peer} 의 config 에 강등 사실을 기록했습니다 (ROLE_STATE=demoted)."
+    else
+        log "[WARN] ${peer} 의 config 기록에 실패했습니다 (sudo 권한 확인 필요)."
+    fi
 }
 
 fence_old_active() {
@@ -2277,6 +2547,7 @@ verify_promotion() {
 
 execute_promotion() {
     fence_old_active
+    mark_peer_demoted "$DB_ACTIVE_IP" || true
     if vip_enabled; then
         release_peer_sub_ip "$DB_ACTIVE_IP" || \
             log "[WARN] 기존 Active 의 SUB_IP 회수를 확인하지 못했습니다. 부여 단계에서 다시 확인합니다."
@@ -2325,6 +2596,21 @@ run_promote() {
 
     PROMOTE_TRIGGER="manual"
     execute_promotion
+
+    if [ "$AUTO_START_MONITOR" == "yes" ] && vip_enabled && command -v systemctl >/dev/null 2>&1; then
+        log "Active 자가 감시를 기동합니다 (SUB_IP 관리)."
+        if [ ! -f "$SERVICE_FILE" ]; then
+            ( service_install ) || log "[WARN] 서비스 등록 실패"
+        fi
+        systemctl restart "${SERVICE_NAME}.service" 2>/dev/null || \
+            systemctl start "${SERVICE_NAME}.service" 2>/dev/null || true
+        sleep 2
+        if service_is_active; then
+            log "모니터링 기동 완료 (${SERVICE_NAME})"
+        else
+            log "[WARN] 모니터링이 기동되지 않았습니다. 확인: systemctl status ${SERVICE_NAME}"
+        fi
+    fi
 }
 
 rollback_detect_context() {
@@ -2954,7 +3240,7 @@ rollback_finish() {
     local slave_out
     slave_out="$(mysql_root_out "SHOW SLAVE STATUS\G")"
     echo "$slave_out" \
-        | grep -E "Slave_IO_Running|Slave_SQL_Running|Last_IO_Error|Last_SQL_Error|Seconds_Behind_Master" \
+        | grep -E "Slave_IO_Running:|Slave_SQL_Running:|Last_IO_Error:|Last_SQL_Error:|Seconds_Behind_Master:" \
         | while IFS= read -r l; do colorize_slave_status "$l"; done
 
     if ! diagnose_slave_error "$slave_out"; then
