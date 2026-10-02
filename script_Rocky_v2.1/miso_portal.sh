@@ -1033,6 +1033,9 @@ sudo sed -i 's|String namoImageUPath =.*|String namoImageUPath = "'${URL}'/edito
 sudo sed -i -E 's|^imageUPath = ".*|imageUPath = "'${URL}'/editorImage";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 #sudo sed -i 's|useExternalServer =.*|useExternalServer = "'${URL}'/editorImage/namo/" + "websource/jsp/ImageUploadExecute.jsp";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
+#UploadFileExtBlockList.jsp 확장자 추가
+sed -i -E 's/^([[:space:]]*uploadFileExtBlockList)[[:space:]]*=[[:space:]]*("[^"]*")?/\1="jpg,png"/' ${miso_path}/webapps/web/plugins/namo/websource/jsp/UploadFileExtBlockList.jsp
+
 #Config.xml 파일 수정
 sudo cp -arp ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml.ori
 sudo sed -i 's|<ImageSavePath></ImageSavePath>|<ImageSavePath>'${miso_path}'/editorImage</ImageSavePath>|g' ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml
