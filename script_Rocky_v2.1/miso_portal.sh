@@ -16,13 +16,13 @@ checkuserdb=0
 check_file()
 {
 if [ ! -e "../jdk/${JAVAFILE}" ]; then
-	echo ${JAVAFILE}" not exist"
+	echo ${JAVAFILE}" does not exist"
 	exit 0
 elif [ ! -e "../tomcat/${TOMCATFILE}" ]; then
-	echo ${TOMCATFILE}" not exist"
+	echo ${TOMCATFILE}" does not exist"
 	exit 0
 elif [ ! -e "../mariadb/${DBFILE}" ]; then
-	echo ${DBFILE}" not exist"
+	echo ${DBFILE}" does not exist"
 	exit 0
 else 
 	echo "install ok"
@@ -70,7 +70,7 @@ dircheck()
 check_path()
 {
 echo "###########config path###########"
-read -p "install_path (Recommand(enter key): "${install_path}"):  >" RET
+read -p "install_path (Recommend(enter key): "${install_path}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	install_path="${RET}"
 fi
@@ -82,31 +82,31 @@ db_path="${install_path}/mariadb"
 dbdata_path="${install_path}/mariadbData"
 dlog_path="${install_path}/logs/mariadb"
 
-read -p "miso path (webapps, fileUpload, editorImage, daemon) (Recommand(enter key): "${miso_path}"):  >" RET
+read -p "miso path (webapps, fileUpload, editorImage, daemon) (Recommend(enter key): "${miso_path}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	miso_path="${RET}"
 fi
-read -p "miso log path (Recommand(enter key): "${mlogs_path}"):  >" RET
+read -p "miso log path (Recommend(enter key): "${mlogs_path}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	mlogs_path="${RET}"
 fi
-read -p "tomcat path (Recommand(enter key): "${tomcat_path}"): >" RET
+read -p "tomcat path (Recommend(enter key): "${tomcat_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	tomcat_path="${RET}"
 fi
-read -p "tomcat log path (Recommand(enter key): "${tlog_path}"): >" RET
+read -p "tomcat log path (Recommend(enter key): "${tlog_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	tlog_path="${RET}"
 fi
-read -p "DB path (Recommand(enter key): "${db_path}"): >" RET
+read -p "DB path (Recommend(enter key): "${db_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	db_path="${RET}"
 fi
-read -p "DB DATA path (Recommand(enter key): "${dbdata_path}"): >" RET
+read -p "DB DATA path (Recommend(enter key): "${dbdata_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	dbdata_path="${RET}"
 fi
-read -p "DB log path (Recommand(enter key): "${dlog_path}"): >" RET
+read -p "DB log path (Recommend(enter key): "${dlog_path}"): >" RET
 if [ ! -z "${RET}" ]; then
 	dlog_path="${RET}"
 fi
@@ -115,7 +115,9 @@ checking
 }
 checking()
 {
+[ -n "$1" ] && CHECK_TITLE="$1"
 echo "================================="
+[ -n "${CHECK_TITLE}" ] && echo " [ ${CHECK_TITLE} ]"
 echo " install path                                               : ${install_path}"
 echo " miso path(webapps, fileUpload, editorImage, miso_daemon)   : ${miso_path}"
 echo " miso log path(miso,miso_daemon)                            : ${mlogs_path}"
@@ -227,25 +229,25 @@ if [[ "$c_tomcat_install" == "1" ]]; then
 fi
 
 if [ ! -e "../jdk/${JAVAFILE}" ]; then
-	echo ${JAVAFILE}" not exist"
+	echo ${JAVAFILE}" does not exist"
 	exit 0
 elif [ ! -e "../tomcat/${TOMCATFILE}" ]; then
-	echo ${TOMCATFILE}" not exist"
+	echo ${TOMCATFILE}" does not exist"
 	exit 0
 fi
 if [ "${checkuserserv}" == "0" ]; then
 check_user_serv
 fi
 
+checking "WAS 설치 (java, tomcat 경로)"
 echo "checking java install"
 if [ -d "${install_path}/java" ]; then
 	echo ${install_path}"/java installed"
 else
 	java_install
 fi
-checking
 dircheck /etc/logrotate.d/tomcat.logrotate
-dircheck /usr/lib/systemd/system/tomcat.service
+[[ "$USE_SERVICE" != "n" ]] && dircheck /usr/lib/systemd/system/tomcat.service
 ###################################################################
 echo "#####tomcat install"
 dircheck ${tomcat_path}
@@ -282,6 +284,9 @@ sudo sed -i '125 i\JAVA_HOME="'"${install_path}"'/java/"' ${tomcat_path}/bin/cat
 sudo sed -i '126 i\JAVA_OPTS="-Xms1024m -Xmx2048m -XX:NewSize=400m -XX:MaxNewSize=400m -XX:SurvivorRatio=4"' ${tomcat_path}/bin/catalina.sh
 sudo sed -i '127 i\CATALINA_OUT="'"${tlog_path}"'/catalina.out"' ${tomcat_path}/bin/catalina.sh
 sudo sed -i '128 i\CATALINA_OPTS="-Djava.net.preferIPv4Stack=true"' ${tomcat_path}/bin/catalina.sh
+
+#오류페이지 Tomcat 버전 노출 차단
+sudo grep -q ErrorReportValve ${tomcat_path}/conf/server.xml || sudo sed -i '/<\/Host>/i\<Valve className="org.apache.catalina.valves.ErrorReportValve" showReport="false" showServerInfo="false" />' ${tomcat_path}/conf/server.xml
 
 #log경로 수정 
 sudo cp -arp ${tomcat_path}/conf/logging.properties  ${tomcat_path}/conf/logging.properties.ori
@@ -414,6 +419,12 @@ fi
 
 sudo chown -R root:root ${tomcat_path}/conf-set/tomcat.service
 echo "#####create tomcat.service done"
+if [[ "$USE_SERVICE" == "n" ]]; then
+	echo "#####skip tomcat service (USE_SERVICE=n)"
+	sudo chown -R ${SERV_USER}:${SERV_USER} ${tomcat_path}
+	sudo sed -i "/c_tomcat_install=/ c\c_tomcat_install=1" "$configfile"
+	return
+fi
 
 echo "#####copy tomcat service"
 sudo cp -arp ${tomcat_path}/conf-set/tomcat.service /usr/lib/systemd/system/tomcat.service
@@ -469,17 +480,17 @@ elif [ -n "${DBFILE}" ] && [ -e "${MARIADB_PATH}" ]; then
 	source "$configfile"
 	mariadb_install
 else
-	echo "DBFILE_mysql or DBFILE is not set, or target file not exist"
+	echo "DBFILE_mysql or DBFILE is not set, or target file does not exist"
 	exit 0
 fi
 }
 mysql_install()
 {
 if [ ! -e "../mariadb/${DBFILE_mysql}" ]; then
-	echo ${DBFILE}" not exist"
+	echo ${DBFILE}" does not exist"
 	exit 0
 fi
-checking
+checking "DB 설치 (MySQL 경로)"
 while true; do
     read -s -p "change root@localhost Password: " dbPASS
     echo
@@ -644,7 +655,7 @@ sudo sed -i "/c_db_install=/ c\c_db_install=1" "$configfile"
 mariadb_install()
 {
 if [ ! -e "../mariadb/${DBFILE}" ]; then
-	echo ${DBFILE}" not exist"
+	echo ${DBFILE}" does not exist"
 	exit 0
 fi
 echo "#####DB install"
@@ -690,14 +701,14 @@ else
 	exit 0
 fi
 
-checking
+checking "DB 설치 (MariaDB 경로)"
 if [ "${checkuserdb}" == "0" ]; then
 check_user_db
 fi
 dircheck ${db_path}
 dircheck ${dlog_path}
 dircheck ${dbdata_path}
-dircheck /usr/lib/systemd/system/mariadb.service 
+[[ "$USE_SERVICE" != "n" ]] && dircheck /usr/lib/systemd/system/mariadb.service 
 dircheck /etc/my.cnf
 ######################################################################################
 sudo mkdir -p ${db_path}
@@ -724,7 +735,7 @@ sudo sed -i'' -r -e "/Type=notify/a\NotifyAccess=all" ${db_path}/conf-set/mariad
 sudo sed -i 's|^User=.*|User='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|^Group=.*|Group='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
 sudo chown -R root:root ${db_path}/conf-set/mariadb.service
-sudo cp -arp ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
+[[ "$USE_SERVICE" != "n" ]] && sudo cp -arp ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
 
 
 sudo cp -arp ${db_path}/bin/galera_recovery ${db_path}/bin/galera_recovery.ori
@@ -766,7 +777,7 @@ sudo chown -R ${MY_USER}:${MY_USER} ${db_path}
 sudo chown -R ${MY_USER}:${MY_USER} ${dbdata_path}
 sudo chown -R ${MY_USER}:${MY_USER} ${dlog_path}
 
-echo "##### /etc/my.cnf sybolic link"
+echo "##### /etc/my.cnf symbolic link"
 sudo ln -s ${db_path}/conf-set/my.cnf /etc/my.cnf
 #### mysql bin 파일 복사
 if [ -e "/usr/bin/mysql" ]; then
@@ -798,8 +809,12 @@ fi
 #### mariadb.service 지정 및 기동
 #sudo ln -s ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
 #sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable mariadb
+if [[ "$USE_SERVICE" == "n" ]]; then
+	echo "#####skip mariadb service (USE_SERVICE=n)"
+else
+	sudo systemctl daemon-reload
+	sudo systemctl enable mariadb
+fi
 echo "#####DB setting done"
 
 if [[ $1 == "mariadb" ]]; then
@@ -844,7 +859,7 @@ fi
 
 #### miso.tar.gz > webapps 지정
 if [ ! -e "../miso_pack/${webapps}" ]; then
-	echo ${webapps}" not exist"
+	echo ${webapps}" does not exist"
 	exit 0
 fi
 ################################################################################################
@@ -855,6 +870,7 @@ cd ${miso_path}/webapps; sudo ${install_path}/java/bin/jar -xvf ${webapps}; cd -
 #### system.properties설정값 복사
 echo "####setting system.properties"
 sudo cp -arp ${miso_path}/webapps/WEB-INF/classes/properties/system.properties ${miso_path}/webapps/WEB-INF/classes/properties/system.properties.ori
+DBCHECK_TITLE="WAS system.properties 에 넣을 DB 접속 정보"
 db_setting
 
 #### system.properties설정값 세팅
@@ -914,29 +930,29 @@ sudo sed -i "/c_miso_install=/ c\c_miso_install=1" "$configfile"
 }
 db_setting()
 {
-read -p "HOST IP setting (Recommand(enter key):"${HOST_IP}"):  >" RET
-if [ ! -z "${RET}" ]; then
-	HOST_IP="${RET}"
-fi
-read -p "WAS IP setting (Recommand(enter key):"${WAS_IP}"):  >" RET
+#read -p "HOST IP setting (Recommend(enter key):"${HOST_IP}"):  >" RET
+#if [ ! -z "${RET}" ]; then
+#	HOST_IP="${RET}"
+#fi
+read -p "WAS IP setting (Recommend(enter key):"${WAS_IP}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	WAS_IP="${RET}"
 fi
-read -p "DB IP setting (Recommand(enter key):"${DB_IP}"):  >" RET
+read -p "DB IP setting (Recommend(enter key):"${DB_IP}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	DB_IP="${RET}"
 fi
-read -p "DB PORT setting (Recommand(enter key):"${DB_PORT}"):  >" RET
+read -p "DB PORT setting (Recommend(enter key):"${DB_PORT}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	DB_PORT="${RET}"
 fi
-read -p "DB USER setting (Recommand(enter key):"${DB_USER}"):  >" RET
+read -p "DB USER setting (Recommend(enter key):"${DB_USER}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	DB_USER="${RET}"
 fi
 read -s -p "DB PASSWORD setting : >" DB_PASSWD
 echo
-read -p "DB DATABASE NAME setting (Recommand(enter key):"${DB_NAME}"):  >" RET
+read -p "DB DATABASE NAME setting (Recommend(enter key):"${DB_NAME}"):  >" RET
 if [ ! -z "${RET}" ]; then
 	DB_NAME="${RET}"
 fi
@@ -945,14 +961,15 @@ db_setting_check
 db_setting_check()
 {
 echo "================================="
-echo " HOST IP      : ${HOST_IP}"
-echo " WAS IP       : ${WAS_IP}"
-echo " DB IP        : ${DB_IP}"
-echo " DB PORT      : ${DB_PORT}"
-echo " DB USER      : ${DB_USER}"
+[ -n "${DBCHECK_TITLE}" ] && echo " [ ${DBCHECK_TITLE} ]"
+#printf ' HOST IP      : %-16s %s\n' "${HOST_IP}" "(이 서버 IP, 기록용)"
+printf ' WAS IP       : %-16s %s\n' "${WAS_IP}" "(WAS 서버 IP, DB 계정 접속 허용 IP)"
+printf ' DB IP        : %-16s %s\n' "${DB_IP}" "(WAS 가 접속할 DB 서버 IP)"
+printf ' DB PORT      : %-16s %s\n' "${DB_PORT}" "(DB 포트)"
+printf ' DB USER      : %-16s %s\n' "${DB_USER}" "(DB 접속 계정)"
 #echo " DB PASSWORD  : ${DB_PASSWD}"
-echo " DB PASSWORD  : ${DB_PASSWD}" | tee /dev/tty | sed 's/\(DB PASSWORD.*:\).*/\1 ********/' >> "$SCRIPTLOGFILE"
-echo " DB DATABASE  : ${DB_NAME}"
+printf ' DB PASSWORD  : %-16s %s\n' "${DB_PASSWD}" "(DB 접속 계정 비밀번호)" | tee /dev/tty | sed 's/\(DB PASSWORD.*:\).*/\1 ********/' >> "$SCRIPTLOGFILE"
+printf ' DB DATABASE  : %-16s %s\n' "${DB_NAME}" "(DB 이름)"
 echo " next (press y or anykey)"
 echo " modify (press n) "
 echo "================================="
@@ -968,7 +985,7 @@ source_db_variable()
 salt=$(printf $SERV_USER | md5sum | cut -c1-16)
 ENC_VALUE=$(echo $DB_PASSWD | openssl enc -aes-256-cbc -a -S $salt -pbkdf2 -iter 100000 -pass pass:$MY_USER)
 echo "source DB variable >> "$configfile""
-sudo sed -i "/HOST_IP=/ c\HOST_IP="${HOST_IP} "$configfile"
+#sudo sed -i "/HOST_IP=/ c\HOST_IP="${HOST_IP} "$configfile"
 sudo sed -i "/WAS_IP=/ c\WAS_IP="${WAS_IP} "$configfile"
 sudo sed -i "/DB_IP=/ c\DB_IP="${DB_IP} "$configfile"
 sudo sed -i "/DB_PORT=/ c\DB_PORT="${DB_PORT} "$configfile"
@@ -1034,7 +1051,7 @@ sudo sed -i -E 's|^imageUPath = ".*|imageUPath = "'${URL}'/editorImage";|' ${mis
 #sudo sed -i 's|useExternalServer =.*|useExternalServer = "'${URL}'/editorImage/namo/" + "websource/jsp/ImageUploadExecute.jsp";|' ${miso_path}/webapps/web/plugins/namo/websource/jsp/ImagePath.jsp
 
 #UploadFileExtBlockList.jsp 확장자 추가
-sed -i -E 's/^([[:space:]]*uploadFileExtBlockList)[[:space:]]*=[[:space:]]*("[^"]*")?/\1="jpg,png"/' ${miso_path}/webapps/web/plugins/namo/websource/jsp/UploadFileExtBlockList.jsp
+sed -i -E 's/^([[:space:]]*uploadFileExtBlockList)[[:space:]]*=[[:space:]]*("[^"]*")?/\1="jpg,png,jpeg"/' ${miso_path}/webapps/web/plugins/namo/websource/jsp/UploadFileExtBlockList.jsp
 
 #Config.xml 파일 수정
 sudo cp -arp ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml ${miso_path}/webapps/web/plugins/namo/config/xmls/Config.xml.ori
@@ -1091,10 +1108,10 @@ ssl()
 sudo mkdir -p ${miso_path}/ssl
 
 if [ ! -e "../jdk/${JAVAFILE}" ]; then
-	echo ${JAVAFILE}" not exist"
+	echo ${JAVAFILE}" does not exist"
 	exit 0
 elif [ ! -e "../tomcat/${TOMCATFILE}" ]; then
-	echo ${TOMCATFILE}" not exist"
+	echo ${TOMCATFILE}" does not exist"
 	exit 0
 fi
 
@@ -1150,14 +1167,26 @@ echo "#### DB RUN"
 if [ "${DBINSTALLQ}" == "n" ]; then
 	echo "DB NOT INSTALL"
 else
-	sudo systemctl start mariadb.service || true
+	if [[ "$USE_SERVICE" == "n" ]]; then
+		sudo ${db_path}/bin/mariadbd-safe --defaults-file=${db_path}/conf-set/my.cnf --user=${MY_USER} >/dev/null 2>&1 &
+		for i in $(seq 1 30); do
+			sudo ${db_path}/bin/mysqladmin ping >/dev/null 2>&1 && break
+			sleep 1
+		done
+	else
+		sudo systemctl start mariadb.service || true
+	fi
 fi
 sudo sed -i "/c_DB_RUN=/ c\c_DB_RUN=1" "$configfile"
 }
 tomcat_RUN()
 {
 echo "#### tomcat RUN"
-sudo systemctl start tomcat.service || true
+if [[ "$USE_SERVICE" == "n" ]]; then
+	sudo -u ${SERV_USER} ${tomcat_path}/bin/startup.sh || true
+else
+	sudo systemctl start tomcat.service || true
+fi
 }
 firewalld_setting()
 {
@@ -1272,9 +1301,10 @@ source_sql()
 {
 	echo "db setting"
 	if [ ! -e "../miso_pack/${init_sql}" ]; then
-		echo ${init_sql}" not exist"
+		echo ${init_sql}" does not exist"
 		exit 0
 	fi
+	DBCHECK_TITLE="DB 서버에 만들 DB/계정 (WAS IP = 접속 허용 IP)"
 	db_setting_check
 	echo "schema & user set"
 	sudo mysql -u root -Bse "DROP DATABASE IF EXISTS \`${DB_NAME}\`;"
@@ -1294,6 +1324,10 @@ source_sql()
 }
 source_sql_new()
 {
+if [[ "$c_source_sql_new" == "1" ]]; then
+	echo "source_sql_skip"
+	return
+fi
 	echo "db setting"
 	sudo mysql -u root -Bse "" >/dev/null 2>&1  || { 
 	echo "root@localhost passwd is not null"
@@ -1314,6 +1348,7 @@ source_sql_new()
 		fi
 	done
 	}
+	DBCHECK_TITLE="DB 서버에 만들 DB/계정 (WAS IP = 접속 허용 IP)"
 	db_setting_check
 	command -v unzip
 	dircheck ../mariadb/sql
@@ -1734,7 +1769,7 @@ echo " Usage: $0 [option]"
 echo "================================================"
 echo " Options:"
 sed -n '/case "\$1" in/,/esac/p' "$0" | \
-grep -E '^\s+[a-zA-Z]{2,}\)' | \
+grep -E '^\s+[a-zA-Z_]{2,}\)' | \
 grep -v '#' | \
 awk -F')' '{gsub(/\t| /,"",$1); printf "  %-15s\n", $1}'
 echo "================================================"
@@ -1750,6 +1785,17 @@ main()
 			db_install&&tomcat_install&&makedir&&miso_install&&
 			DB_RUN&&source_sql_new&&firewalld_setting&&tomcat_RUN
 			;;
+		install_db)
+			c_db_install=0; c_DB_RUN=0
+			c_tomcat_install=1; c_miso_install=1
+			main install
+			;;
+		install_tomcat)
+			c_db_install=1; c_DB_RUN=1
+			c_tomcat_install=0; c_miso_install=0
+			c_source_sql_new=1
+			main install
+			;;
 		tomcat)
 			check_file&&check_sel&&
 			tomcat_install 
@@ -1762,6 +1808,7 @@ main()
 			firewalld_setting
 			;;
 		dbvalue)
+			DBCHECK_TITLE="config 저장값 확인"
 			db_setting_check
 			;;
 		namo)
