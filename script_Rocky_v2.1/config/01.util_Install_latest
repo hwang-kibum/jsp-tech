@@ -9,32 +9,34 @@ DATE=$(date "+%Y-%m-%d")
 
 #Global variable
 install_path=/data
-local_backup_path=/backup
+local_backup_path=/data/backup
+#systemd service 등록 (y: 등록, n: 미등록-내부테스트)
+USE_SERVICE=y
 ###########################################
 DP_ENC=
 DRP_ENC=
 RP_ENC=
 ############필요시 수정 
-miso_path="${install_path}/miso"
-mlogs_path="${install_path}/logs"
-tomcat_path="${install_path}/tomcat"
-tlog_path="${install_path}/logs/tomcat"
-db_path="${install_path}/mariadb"
-dbdata_path="${install_path}/mariadbData"
-dlog_path="${install_path}/logs/mariadb"
+miso_path=/data/miso
+mlogs_path=/data/logs
+tomcat_path=/data/tomcat
+tlog_path=/data/logs/tomcat
+db_path=/data/mariadb
+dbdata_path=/data/mariadbData
+dlog_path=/data/logs/mariadb
 ###########################################
-HOST_IP=127.0.0.1
+#HOST_IP=127.0.0.1
 WAS_IP=127.0.0.1
 DB_IP=127.0.0.1
 DB_PORT=3306
 DB_USER=jsp
-DB_NAME=miso
+DB_NAME=aaaa
 ############################################
 #jdk variable
 JAVAFILE=jdk-25_linux-x64_bin.tar.gz
 ############################################
 #tomcat variable
-TOMCATFILE=apache-tomcat-11.0.25.tar.gz
+TOMCATFILE=apache-tomcat-11.0.27.tar.gz
 ############################################
 #mariadb variable
 DBFILE=mariadb-11.4.13-linux-systemd-x86_64.tar.gz
