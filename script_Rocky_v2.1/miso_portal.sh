@@ -394,7 +394,7 @@ tomcat_service()
 echo "#####make tomcat service"
 sudo tee ${tomcat_path}/conf-set/tomcat.service > /dev/null << EOF
 [Unit]
-Description=tomcat 9
+Description=tomcat_miso
 After=network.target syslog.target
 Wants=network.target
 
@@ -734,6 +734,12 @@ sudo sed -i 's|/usr/local/mysql|'${db_path}'|g' ${db_path}/conf-set/mariadb.serv
 sudo sed -i'' -r -e "/Type=notify/a\NotifyAccess=all" ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|^User=.*|User='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
 sudo sed -i 's|^Group=.*|Group='${MY_USER}'|' ${db_path}/conf-set/mariadb.service
+#### 취약점 조치 선행작업
+if ! grep -q '^Environment="UMASK=0640"' ${db_path}/conf-set/mariadb.service; then
+sed -i '/^\[Service\]/a Environment="UMASK_DIR=0700"' ${db_path}/conf-set/mariadb.service
+sed -i '/^\[Service\]/a Environment="UMASK=0640"' ${db_path}/conf-set/mariadb.service
+fi
+sed -i 's/^UMask=/#UMask=/' ${db_path}/conf-set/mariadb.service
 sudo chown -R root:root ${db_path}/conf-set/mariadb.service
 [[ "$USE_SERVICE" != "n" ]] && sudo cp -arp ${db_path}/conf-set/mariadb.service /usr/lib/systemd/system/mariadb.service
 
