@@ -1768,6 +1768,75 @@ do
 done
 
 }
+
+ssl_apache()
+{
+if [ -z "$(command -v openssl)" ]; then
+	echo "check openssl command"
+	exit 0
+fi
+
+while true; do
+	read -p "insert domain or IP (ex : miso.example.com) >" SSL_CN
+	if [ -z "${SSL_CN}" ]; then
+		echo "domain or IP is empty. Try again."
+		continue
+	fi
+	read -p "CN = ${SSL_CN} / y(enterkey) n(change) >" RET
+	if [[ "$RET" == "y" || -z "$RET" ]]; then
+		break
+	fi
+done
+
+#SAN (IP 형식이면 IP, 아니면 DNS)
+if [[ "${SSL_CN}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+	SSL_SAN="IP:${SSL_CN}"
+else
+	SSL_SAN="DNS:${SSL_CN}"
+fi
+
+#설치 스크립트 폴더 아래 ssl
+SSL_CERT=ssl/jsp_cert.pem
+SSL_KEY=ssl/jsp_key.pem
+SSL_CNF=ssl/jsp_openssl.cnf
+
+mkdir -p ssl
+dircheck ${SSL_CERT}
+dircheck ${SSL_KEY}
+
+#openssl 설정 파일 (버전별 기본 설정에 영향받지 않도록 직접 지정)
+cat > ${SSL_CNF} << EOF
+[req]
+distinguished_name = dn
+x509_extensions = v3
+prompt = no
+[dn]
+C = KR
+ST = jsp
+L = jsp
+O = jsp
+OU = jsp
+CN = ${SSL_CN}
+[v3]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = ${SSL_SAN}
+EOF
+
+#개인키 + 자체서명 인증서 생성 (개인키 암호 없음 : apache 기동 시 암호 입력 방지)
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+	-keyout ${SSL_KEY} -out ${SSL_CERT} -config ${SSL_CNF} 2>/dev/null
+if [ $? -ne 0 ]; then
+	echo "pem create fail"
+	exit 1
+fi
+rm -f ${SSL_CNF}
+
+chmod 644 ${SSL_CERT}
+chmod 600 ${SSL_KEY}
+}
+
 usage() 
 {
 echo "================================================"
@@ -1825,6 +1894,9 @@ main()
 			;;
 		ssl)
 			ssl
+			;;
+		ssl_apache)
+			ssl_apache
 			;;
 		setcap)
 			setcap
